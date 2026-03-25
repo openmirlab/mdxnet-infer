@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mdxnet-infer"
+version = "0.1.0"
+description = "Inference-only MDX23C TFC-TDF drum source separation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "OpenMIRLab", email = "bernie40916@gmail.com" }
+]
+keywords = ["audio", "drum", "source-separation", "mdx23c", "tfc-tdf", "pytorch", "inference"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch>=2.0.0",
+    "numpy>=1.23.5",
+    "soundfile>=0.12.0",
+    "librosa>=0.10.0",
+    "tqdm>=4.64",
+    "pyyaml>=6.0",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/openmirlab/mdxnet-infer"
+Repository = "https://github.com/openmirlab/mdxnet-infer"
+Issues = "https://github.com/openmirlab/mdxnet-infer/issues"
+
+[project.scripts]
+mdxnet-infer = "mdxnet_infer.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mdxnet_infer"]
+
+[tool.hatch.build]
+include = [
+    "src/mdxnet_infer/**/*.py",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0",
+    "ruff>=0.5",
+]
