@@ -1,8 +1,19 @@
-"""
-TFC-TDF neural network architecture for MDX23C audio source separation.
+# Copyright (c) 2023 KUIELab (sdx23 TFC-TDF v3 architecture)
+# Copyright (c) 2023 Roman Solovyev / ZFTurbo (Music-Source-Separation-Training)
+# SPDX-License-Identifier: MIT
 
-Standalone implementation based on the Music-Source-Separation-Training architecture.
-Does not depend on audio-separator or any external separation framework.
+"""TFC-TDF v3 encoder-decoder network: the MDX23C architecture used for drum
+stem separation.
+
+Verbatim inference-only port of ZFTurbo's Music-Source-Separation-Training
+`models/mdx23c_tfc_tdf_v3.py` (itself based on KUIELab's sdx23 TFC-TDF v3),
+with training-only code stripped and the config plumbing adapted to this
+package's dataclasses. `TFC_TDF_net.forward()` is the model referenced by
+`MDX23CInference` — it does STFT -> subband reshape -> U-Net-style TFC-TDF
+encoder/decoder -> masked reconstruction -> inverse STFT, producing one
+output channel group per stem.
+
+Reads: .config
 """
 
 import torch
