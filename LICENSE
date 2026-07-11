@@ -1,5 +1,15 @@
 MIT License
 
+mdxnet-infer's model.py is a verbatim-ported, inference-only subset of
+ZFTurbo's Music-Source-Separation-Training (https://github.com/ZFTurbo/Music-Source-Separation-Training),
+whose MDX23C TFC-TDF architecture originates from KUIELab's sdx23
+(https://github.com/kuielab/sdx23/). Both are MIT licensed; both are
+credited below alongside OpenMIRLab's packaging of this inference-only port.
+No model weights are bundled with this software — see README.md for weights
+provenance and licensing, which is separate from the code license below.
+
+Copyright (c) 2023 KUIELab
+Copyright (c) 2023 Roman Solovyev (ZFTurbo)
 Copyright (c) 2024 OpenMIRLab
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
