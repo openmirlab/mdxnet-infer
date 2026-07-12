@@ -165,7 +165,26 @@ class TestMDX23CInference:
     def test_known_models_registry(self):
         from mdxnet_infer.inference import MDX23CInference
         assert "drumsep-6stem" in MDX23CInference.KNOWN_MODELS
-        assert "drumsep-5stem" in MDX23CInference.KNOWN_MODELS
+        # drumsep-5stem has no surviving original source anywhere on the
+        # web (see README) and was removed from the downloadable registry.
+        assert "drumsep-5stem" not in MDX23CInference.KNOWN_MODELS
+
+    def test_known_models_have_sha256(self):
+        """Every registered model's weight URLs carry a sha256 digest for
+        the Weights UX contract's auto-download verification leg."""
+        from mdxnet_infer.inference import MDX23CInference
+
+        for name, info in MDX23CInference.KNOWN_MODELS.items():
+            assert info.get("ckpt_sha256"), f"{name} missing ckpt_sha256"
+            assert info.get("yaml_sha256"), f"{name} missing yaml_sha256"
+            assert len(info["ckpt_sha256"]) == 64
+            assert len(info["yaml_sha256"]) == 64
+            assert info["ckpt_url"].startswith(
+                "https://github.com/openmirlab/mdxnet-infer/releases/download/"
+            )
+            assert info["yaml_url"].startswith(
+                "https://github.com/openmirlab/mdxnet-infer/releases/download/"
+            )
 
     def test_stem_names_6stem(self):
         from mdxnet_infer.inference import MDX23CInference
@@ -216,7 +235,28 @@ class TestMDX23CInference:
         """Passing model_name selects the correct built-in config."""
         from mdxnet_infer.inference import MDX23CInference
 
-        engine = MDX23CInference(device="cpu", model_name="drumsep-5stem")
+        engine = MDX23CInference(device="cpu", model_name="drumsep-6stem")
+        assert engine.stem_names == ["kick", "snare", "toms", "hh", "ride", "crash"]
+
+    def test_unknown_model_name_raises(self):
+        """An unregistered model_name (with no explicit config) raises
+        clearly instead of silently falling back to the default config."""
+        from mdxnet_infer.inference import MDX23CInference
+
+        with pytest.raises(ValueError, match="Unknown model_name"):
+            MDX23CInference(device="cpu", model_name="drumsep-5stem")
+
+    def test_unknown_model_name_with_explicit_config_ok(self):
+        """An unregistered model_name is fine as long as an explicit config
+        is also given (e.g. for a user-supplied 5-stem checkpoint)."""
+        from mdxnet_infer.inference import MDX23CInference
+        from mdxnet_infer.config import MDX23CConfig
+
+        engine = MDX23CInference(
+            device="cpu",
+            model_name="drumsep-5stem",
+            config=MDX23CConfig.drumsep_5stem(),
+        )
         assert engine.stem_names == ["kick", "snare", "toms", "hh", "cymbals"]
 
     def test_missing_model_file_raises(self, tmp_path):
@@ -255,6 +295,72 @@ class TestUtils:
 
         d = get_cache_dir("drumsep-6stem")
         assert d.name == "drumsep-6stem"
+
+    def test_sha256sum(self, tmp_path):
+        import hashlib
+        from mdxnet_infer.utils.download import sha256sum
+
+        f = tmp_path / "data.bin"
+        f.write_bytes(b"hello world")
+        expected = hashlib.sha256(b"hello world").hexdigest()
+        assert sha256sum(f) == expected
+
+    @staticmethod
+    def _fake_requests_module(content: bytes):
+        """Build a stand-in `requests` module whose `.get()` returns a
+        fixed byte payload, for exercising download_file()'s sha256 path
+        without a real network call."""
+        import types
+
+        class _FakeResponse:
+            status_code = 200
+            headers = {"content-length": str(len(content))}
+
+            def raise_for_status(self):
+                pass
+
+            def iter_content(self, chunk_size):
+                yield content
+
+        fake_requests = types.ModuleType("requests")
+        fake_requests.get = lambda url, stream=True, timeout=300: _FakeResponse()
+        return fake_requests
+
+    def test_download_file_sha256_mismatch_raises_and_cleans_up(self, tmp_path, monkeypatch):
+        """A checksum mismatch after download raises and removes the bad file."""
+        import sys
+        from mdxnet_infer.utils import download as download_mod
+
+        monkeypatch.setitem(sys.modules, "requests", self._fake_requests_module(b"wrong"))
+
+        dest = tmp_path / "file.bin"
+        with pytest.raises(download_mod.ChecksumMismatchError):
+            download_mod.download_file(
+                "http://example.invalid/file.bin",
+                dest,
+                progress=False,
+                expected_sha256="0" * 64,
+            )
+        assert not dest.exists()
+
+    def test_download_file_sha256_match_ok(self, tmp_path, monkeypatch):
+        import sys
+        import hashlib
+        from mdxnet_infer.utils import download as download_mod
+
+        content = b"correct bytes"
+        digest = hashlib.sha256(content).hexdigest()
+
+        monkeypatch.setitem(sys.modules, "requests", self._fake_requests_module(content))
+
+        dest = tmp_path / "file.bin"
+        download_mod.download_file(
+            "http://example.invalid/file.bin",
+            dest,
+            progress=False,
+            expected_sha256=digest,
+        )
+        assert dest.read_bytes() == content
 
     def test_combine_cymbal_stems(self):
         from mdxnet_infer.utils.stems import combine_cymbal_stems

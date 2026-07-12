@@ -1,0 +1,70 @@
+name: Publish to PyPI
+
+# Publishes the package to PyPI when a GitHub Release is created. Uses
+# PyPI's trusted publishing (OIDC) -- no tokens -- which must be configured
+# on PyPI for the openmirlab org / mdxnet-infer repo. The `test` job (full
+# unit suite, no weights needed) gates `publish` per the org constitution's
+# release rule: publishing workflows must run tests and fail the publish
+# on any failure.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 0.1.0)'
+        required: false
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: '3.10'
+
+      - name: Sync dependencies
+        run: uv sync --extra dev
+
+      - name: Run unit tests
+        run: uv run pytest tests/ -q
+
+  publish:
+    needs: [test]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for trusted publishing (OIDC)
+      contents: read    # Required to checkout code
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build hatchling
+
+      - name: Build package
+        run: python -m build
+
+      - name: Check package
+        run: |
+          pip install twine
+          twine check dist/*
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
