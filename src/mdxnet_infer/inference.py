@@ -6,10 +6,13 @@ it) and run chunked, overlap-averaged separation over arbitrary-length audio.
 through `TFC_TDF_net`, and accumulates overlapping predictions before
 dividing by `overlap` to average them back down — this is what lets a model
 trained on a few seconds of audio process an arbitrary-length track.
-`KNOWN_MODELS` hard-codes the two published aufr33/jarredou DrumSep
-checkpoints' download URLs; see README's Weights provenance section for the
-current status of that hosting. `separate_drums()` is the file-in/files-out
-convenience wrapper the CLI and top-level `separate` alias call.
+`KNOWN_MODELS` hard-codes the one currently-downloadable aufr33/jarredou
+DrumSep checkpoint's org-hosted release URLs and sha256 digests; see
+README's Weights provenance section for provenance and for the 5-stem
+model's lost-upstream status. `download_model()` verifies sha256 on every
+fresh download and re-verifies cached files before reuse. `separate_drums()`
+is the file-in/files-out convenience wrapper the CLI and top-level
+`separate` alias call.
 
 Reads: .config, .model, .utils.download, .utils.cache
 """
@@ -22,7 +25,7 @@ from tqdm import tqdm
 
 from .config import MDX23CConfig
 from .model import TFC_TDF_net
-from .utils.download import download_file
+from .utils.download import download_file, sha256sum
 from .utils.cache import get_cache_dir
 
 
@@ -36,7 +39,12 @@ class MDX23CInference:
     Supported pretrained models:
 
     - ``drumsep-6stem``: kick, snare, toms, hh, ride, crash
-    - ``drumsep-5stem``: kick, snare, toms, hh, cymbals
+
+    The original ``drumsep-5stem`` checkpoint has no surviving original
+    source anywhere on the web (see README's Weights provenance section)
+    and has been removed from this registry; it may return if a verified
+    mirror surfaces. Its architecture config (:meth:`MDX23CConfig.drumsep_5stem`)
+    remains available for anyone supplying their own checkpoint file.
 
     Example::
 
@@ -45,32 +53,29 @@ class MDX23CInference:
         # stems -> {"kick": array, "snare": array, ...}
     """
 
-    # Known model configurations with download URLs
+    # Known model configurations with download URLs. Hosted under org
+    # control (openmirlab/mdxnet-infer GitHub Release), not a third-party
+    # account — see org constitution art.4 and README's Weights provenance
+    # section for the cross-mirror sha256 verification story.
     KNOWN_MODELS = {
         'drumsep-6stem': {
             'config': 'drumsep_6stem',
             'stems': ['kick', 'snare', 'toms', 'hh', 'ride', 'crash'],
             'ckpt_url': (
-                'https://github.com/jarredou/models/releases/download/'
-                'aufr33-jarredou_MDX23C_DrumSep_model_v0.1/'
+                'https://github.com/openmirlab/mdxnet-infer/releases/download/'
+                'weights-drumsep-v1/'
                 'aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.ckpt'
             ),
             'yaml_url': (
-                'https://github.com/jarredou/models/releases/download/'
-                'aufr33-jarredou_MDX23C_DrumSep_model_v0.1/'
+                'https://github.com/openmirlab/mdxnet-infer/releases/download/'
+                'weights-drumsep-v1/'
                 'aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.yaml'
             ),
-        },
-        'drumsep-5stem': {
-            'config': 'drumsep_5stem',
-            'stems': ['kick', 'snare', 'toms', 'hh', 'cymbals'],
-            'ckpt_url': (
-                'https://github.com/jarredou/models/releases/download/'
-                'DrumSep/drumsep_5stems_mdx23c_jarredou.ckpt'
+            'ckpt_sha256': (
+                'd2a4aa53eb584d21eead358a4e66d1882ad182911be018f052b5da73be9096d0'
             ),
-            'yaml_url': (
-                'https://github.com/jarredou/models/releases/download/'
-                'DrumSep/config_mdx23c.yaml'
+            'yaml_sha256': (
+                '17d1649a227f841165bdb4c11a42082898192a1ea3ceab7e7e0b9293d6589dd6'
             ),
         },
     }
@@ -93,9 +98,10 @@ class MDX23CInference:
             config_path: Path to YAML config file.
             device: Inference device (``'cuda'``, ``'cpu'``, or ``'mps'``).
                 Auto-detects if ``None``.
-            model_name: Known model name (``'drumsep-6stem'`` or
-                ``'drumsep-5stem'``). Used to select built-in config when
-                ``config`` and ``config_path`` are both ``None``.
+            model_name: Known model name (currently only ``'drumsep-6stem'``;
+                see class docstring). Used to select built-in config when
+                ``config`` and ``config_path`` are both ``None``. Raises
+                ``ValueError`` if given a name not in :attr:`KNOWN_MODELS`.
         """
         # Determine device
         if device is None:
@@ -114,7 +120,15 @@ class MDX23CInference:
             self.config = config
         elif config_path is not None:
             self.config = MDX23CConfig.from_yaml(Path(config_path))
-        elif model_name is not None and model_name in self.KNOWN_MODELS:
+        elif model_name is not None:
+            if model_name not in self.KNOWN_MODELS:
+                raise ValueError(
+                    f"Unknown model_name: {model_name!r}. "
+                    f"Known models: {list(self.KNOWN_MODELS.keys())}. "
+                    "Pass an explicit `config` or `config_path` to use a "
+                    "custom or no-longer-registered architecture "
+                    "(e.g. MDX23CConfig.drumsep_5stem())."
+                )
             config_method = getattr(
                 MDX23CConfig,
                 self.KNOWN_MODELS[model_name]['config']
@@ -282,13 +296,20 @@ class MDX23CInference:
         Download a known pretrained model to cache.
 
         Args:
-            model_name: ``'drumsep-6stem'`` or ``'drumsep-5stem'``
+            model_name: ``'drumsep-6stem'`` (currently the only known model;
+                see class docstring).
             cache_dir: Directory to cache model files. Defaults to
-                ``~/.cache/mdxnet-infer/``.
+                ``~/.cache/mdxnet-infer/`` (override via the
+                ``MDXNET_INFER_CACHE_DIR`` env var; see
+                :func:`mdxnet_infer.utils.cache.get_cache_dir`).
             progress: Show download progress bar.
 
         Returns:
             Tuple of ``(ckpt_path, yaml_path)``.
+
+        Raises:
+            ValueError: ``model_name`` is unknown, or a downloaded/cached
+                file fails sha256 verification.
         """
         if model_name not in cls.KNOWN_MODELS:
             raise ValueError(
@@ -305,29 +326,48 @@ class MDX23CInference:
 
         cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # Download checkpoint
-        ckpt_url = model_info['ckpt_url']
-        ckpt_filename = ckpt_url.split('/')[-1]
-        ckpt_path = cache_dir / ckpt_filename
-
-        if not ckpt_path.exists():
-            print(f"Downloading {ckpt_filename}...")
-            download_file(ckpt_url, ckpt_path, progress=progress)
-        else:
-            print(f"Using cached {ckpt_filename}")
-
-        # Download YAML config
-        yaml_url = model_info['yaml_url']
-        yaml_filename = yaml_url.split('/')[-1]
-        yaml_path = cache_dir / yaml_filename
-
-        if not yaml_path.exists():
-            print(f"Downloading {yaml_filename}...")
-            download_file(yaml_url, yaml_path, progress=progress)
-        else:
-            print(f"Using cached {yaml_filename}")
+        ckpt_path = cls._fetch_verified(
+            model_info['ckpt_url'], cache_dir,
+            model_info.get('ckpt_sha256'), progress,
+        )
+        yaml_path = cls._fetch_verified(
+            model_info['yaml_url'], cache_dir,
+            model_info.get('yaml_sha256'), progress,
+        )
 
         return ckpt_path, yaml_path
+
+    @staticmethod
+    def _fetch_verified(
+        url: str,
+        cache_dir: Path,
+        expected_sha256: Optional[str],
+        progress: bool,
+    ) -> Path:
+        """Download ``url`` into ``cache_dir`` (or reuse the cached copy),
+        verifying sha256 against ``expected_sha256`` when given.
+
+        A cached file that fails verification is treated as corrupt and
+        re-downloaded once; a fresh download that fails verification raises
+        (see :func:`mdxnet_infer.utils.download.download_file`).
+        """
+        filename = url.split('/')[-1]
+        path = cache_dir / filename
+
+        if path.exists():
+            if expected_sha256 and sha256sum(path).lower() != expected_sha256.lower():
+                print(
+                    f"Cached {filename} failed sha256 verification; "
+                    "re-downloading..."
+                )
+                download_file(url, path, progress=progress, expected_sha256=expected_sha256)
+            else:
+                print(f"Using cached {filename}")
+        else:
+            print(f"Downloading {filename}...")
+            download_file(url, path, progress=progress, expected_sha256=expected_sha256)
+
+        return path
 
     @classmethod
     def from_pretrained(
@@ -367,6 +407,7 @@ def separate_drums(
     model_name: str = 'drumsep-6stem',
     combine_cymbals: bool = False,
     device: Optional[str] = None,
+    cache_dir: Optional[Union[str, Path]] = None,
     progress: bool = True,
 ) -> Dict[str, Path]:
     """
@@ -378,10 +419,14 @@ def separate_drums(
         audio_path: Path to input audio file.
         output_dir: Directory for output WAV files. Defaults to same
             directory as ``audio_path``.
-        model_name: ``'drumsep-6stem'`` (default) or ``'drumsep-5stem'``.
+        model_name: ``'drumsep-6stem'`` (default; currently the only known
+            pretrained model, see :class:`MDX23CInference`).
         combine_cymbals: If ``True`` and using the 6-stem model, merge
             ride + crash into a single ``cymbals`` stem.
         device: Inference device. Auto-detected if ``None``.
+        cache_dir: Directory for cached model weights. Defaults to
+            ``~/.cache/mdxnet-infer/`` (override via the
+            ``MDXNET_INFER_CACHE_DIR`` env var).
         progress: Show progress messages and bars.
 
     Returns:
@@ -414,6 +459,7 @@ def separate_drums(
         print(f"Loading model: {model_name}")
     engine = MDX23CInference.from_pretrained(
         model_name=model_name,
+        cache_dir=cache_dir,
         device=device,
         progress=progress,
     )

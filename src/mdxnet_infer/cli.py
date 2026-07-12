@@ -32,8 +32,11 @@ def main() -> None:
     parser.add_argument(
         "--model",
         default="drumsep-6stem",
-        choices=["drumsep-6stem", "drumsep-5stem"],
-        help="Pretrained model to use (default: drumsep-6stem)",
+        choices=["drumsep-6stem"],
+        help=(
+            "Pretrained model to use (default: drumsep-6stem). "
+            "drumsep-5stem is currently unavailable -- see README."
+        ),
     )
     parser.add_argument(
         "--combine-cymbals",
@@ -54,7 +57,10 @@ def main() -> None:
         type=Path,
         default=None,
         dest="cache_dir",
-        help="Directory for cached model weights",
+        help=(
+            "Directory for cached model weights "
+            "(default: ~/.cache/mdxnet-infer/, or $MDXNET_INFER_CACHE_DIR)"
+        ),
     )
     parser.add_argument(
         "-q", "--quiet",
@@ -79,6 +85,7 @@ def main() -> None:
             model_name=args.model,
             combine_cymbals=args.combine_cymbals,
             device=args.device,
+            cache_dir=args.cache_dir,
             progress=not args.quiet,
         )
     except Exception as exc:

@@ -1,7 +1,8 @@
 # mdxnet-infer
 
-Inference-only MDX23C TFC-TDF drum stem separation. Ships two community
-DrumSep checkpoints (5-stem, 6-stem) by aufr33/jarredou. No training code.
+Inference-only MDX23C TFC-TDF drum stem separation. Ships one community
+DrumSep checkpoint (6-stem) by aufr33/jarredou, org-hosted. No training code.
+The 5-stem checkpoint is lost upstream (see below).
 
 ## Scope
 
@@ -14,12 +15,16 @@ DrumSep checkpoints (5-stem, 6-stem) by aufr33/jarredou. No training code.
 - `src/mdxnet_infer/config.py` — `MDX23CConfig` dataclass tree (audio/model/
   training/inference), loadable from the YAML shipped alongside each
   checkpoint, plus two hard-coded presets (`drumsep_6stem`, `drumsep_5stem`)
-  matching the two known checkpoints' actual training configs.
+  matching the two known checkpoints' actual training configs. `drumsep_5stem`
+  is kept even though its checkpoint is unavailable (see below), in case a
+  user supplies their own weights or a mirror surfaces.
 - `src/mdxnet_infer/inference.py` — `MDX23CInference` (load + chunked
   overlap-add separation) and `separate_drums()` (file-in/files-out
   convenience wrapper used by the CLI and the top-level `separate` alias).
-  `KNOWN_MODELS` hard-codes the two checkpoints' download URLs — see
-  "Known, deliberately unfixed issues" below.
+  `KNOWN_MODELS` hard-codes `drumsep-6stem`'s org-hosted GitHub Release
+  download URLs and sha256 digests (`download_model()` verifies both fresh
+  downloads and cached files against them). `drumsep-5stem` is not in
+  `KNOWN_MODELS` — see "Known, deliberately unfixed issues" below.
 - `src/mdxnet_infer/cli.py` — argparse entry point (`mdxnet-infer` console
   script), thin pass-through to `separate_drums()`.
 - `src/mdxnet_infer/utils/` — `download.py` (streamed HTTP download),
@@ -57,16 +62,19 @@ docstring (see `model.py`).
 
 ## Known, deliberately unfixed issues
 
-- **Weight hosting is dead.** `KNOWN_MODELS` in `inference.py` points at
-  `github.com/jarredou/models` release assets; that GitHub account/repo no
-  longer exists (verified via `gh api` and direct HTTP HEAD — both 404).
-  Both `drumsep-6stem` and `drumsep-5stem` currently fail to download. Not
-  fixed here: no verified byte-identical replacement source was found
-  (third-party HF mirrors exist but weren't checksummed against the
-  original release assets), and re-hosting weights under org control is an
-  outward-facing action requiring explicit sign-off per org policy.
-  Recommendation: either get sign-off to mirror a verified checkpoint under
-  openmirlab's HF account, or contact aufr33/jarredou for a current source.
+- **`drumsep-6stem` weight hosting was dead, now resolved.** The original
+  `github.com/jarredou/models` release assets are gone (404, verified via
+  `gh api` and direct HTTP HEAD). Two independent third-party HF mirrors of
+  the checkpoint were cross-verified byte-identical (matching sha256), and
+  both files were re-published as an openmirlab-controlled GitHub Release
+  (`weights-drumsep-v1`). `KNOWN_MODELS['drumsep-6stem']` now points there
+  and records sha256 digests that `download_model()` verifies.
+- **`drumsep-5stem` is lost upstream — not resolved, not coming back
+  automatically.** Same dead `jarredou/models` hosting, but no intact
+  original-format mirror could be found anywhere on the web (only a
+  non-drop-in OpenVINO conversion, `Intel/drumsep_mdx23c_jarredou_openvino`).
+  Removed from `KNOWN_MODELS`; `config.py`'s `drumsep_5stem` preset stays for
+  anyone with their own checkpoint. Revisit if a verified mirror surfaces.
 - **Weights license is undocumented upstream.** No LICENSE or explicit terms
   were ever published by aufr33/jarredou for the DrumSep checkpoints.
   Third-party re-uploads disagree (MIT-tagged HF mirror vs. a
