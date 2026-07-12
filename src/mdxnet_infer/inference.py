@@ -1,8 +1,17 @@
-"""
-MDX23C inference module for drum source separation.
+"""`MDX23CInference`: load a DrumSep checkpoint (from cache or by downloading
+it) and run chunked, overlap-averaged separation over arbitrary-length audio.
 
-Standalone implementation — does not depend on audio-separator or
-any drum-toolkit pipeline infrastructure.
+`separate()` does the actual work: pads the mix, slices it into overlapping
+`chunk_size`-sample windows sized from `config.inference.dim_t`, batches them
+through `TFC_TDF_net`, and accumulates overlapping predictions before
+dividing by `overlap` to average them back down — this is what lets a model
+trained on a few seconds of audio process an arbitrary-length track.
+`KNOWN_MODELS` hard-codes the two published aufr33/jarredou DrumSep
+checkpoints' download URLs; see README's Weights provenance section for the
+current status of that hosting. `separate_drums()` is the file-in/files-out
+convenience wrapper the CLI and top-level `separate` alias call.
+
+Reads: .config, .model, .utils.download, .utils.cache
 """
 
 from pathlib import Path

@@ -16,14 +16,13 @@ Example usage::
     stems = engine.separate(audio, sample_rate=44100)
 """
 
+from .__about__ import __version__
 from .model import TFC_TDF_net
 from .inference import MDX23CInference
 from .config import MDX23CConfig
 
 # High-level convenience function
 from .inference import separate_drums as separate
-
-__version__ = "0.1.0"
 
 __all__ = [
     "TFC_TDF_net",

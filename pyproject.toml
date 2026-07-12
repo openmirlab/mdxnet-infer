@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mdxnet-infer"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Inference-only MDX23C TFC-TDF drum source separation"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -48,6 +48,9 @@ Issues = "https://github.com/openmirlab/mdxnet-infer/issues"
 
 [project.scripts]
 mdxnet-infer = "mdxnet_infer.cli:main"
+
+[tool.hatch.version]
+path = "src/mdxnet_infer/__about__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mdxnet_infer"]
