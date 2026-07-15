@@ -41,6 +41,8 @@ mdxnet-infer is built on the MDX23C TFC-TDF architecture and the DrumSep model w
 
 - 6-stem separation: kick, snare, toms, hi-hat, ride, crash (with optional cymbal merging)
 - High-level `separate()` function and `MDX23CInference` class API
+- Package-qualified `MDXNetSeparator` facade for reusable task-level calls
+- Explicit `MDXNetSession` lifecycle with package-owned checkpoint metadata
 - Time-Frequency Convolution with Time-Distributed Fully-connected (TFC-TDF) blocks
 - 44.1 kHz stereo output
 
@@ -115,6 +117,46 @@ audio, sr = librosa.load("drums.wav", sr=None, mono=False)
 stems = engine.separate(audio.T, sample_rate=sr)
 # stems -> {"kick": array, "snare": array, "toms": array, "hh": array, "ride": array, "crash": array}
 ```
+
+### Clean task-level facade
+
+`MDXNetSeparator` is an additive front door over the existing inference
+engine. In-memory arrays or tensors require an explicit positive `sample_rate`
+and are normalized to float32 before delegation; path inputs retain the
+compatible file-in/files-out `separate()` behavior. A helper lazily creates
+and reuses one engine, while one-shot functions create a fresh helper for each
+call.
+
+```python
+from mdxnet_infer import MDXNetSeparator, separate_tensor
+
+separator = MDXNetSeparator(model_name="drumsep-6stem", device="cpu")
+stems = separator.separate(audio, sample_rate=sr)
+stems = separate_tensor(audio, sample_rate=sr, device="cpu", progress=False)
+```
+
+The lower-level `MDX23CInference` API remains available for custom checkpoint,
+configuration, chunking, and overlap composition.
+
+### Explicit model lifecycle
+
+`MDXNetSession` provides a strict lifecycle for services and repeated calls.
+`load()` downloads (or verifies) the release-pinned checkpoint and config,
+`infer()` requires a ready session, and `release()` frees the in-memory model
+while leaving the disk cache intact. The package ships its release-pinned
+metadata in `mdxnet_infer/config/checkpoints.toml` (including separate
+checkpoint and YAML config artifacts), while custom `checkpoint_path`, `checkpoint_url`, and
+`checkpoint_metadata` values remain supported.
+
+```python
+from mdxnet_infer import MDXNetSession
+
+with MDXNetSession(model_name="drumsep-6stem", device="cpu") as session:
+    stems = session.infer(audio, sample_rate=44100)
+```
+
+The session is package-owned and has no dependency on a central runtime or
+catalog service; external applications can wrap it with their own policies.
 
 ## Supported Models
 

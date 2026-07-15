@@ -58,6 +58,7 @@ packages = ["src/mdxnet_infer"]
 [tool.hatch.build]
 include = [
     "src/mdxnet_infer/**/*.py",
+    "src/mdxnet_infer/**/*.toml",
 ]
 
 [tool.uv]

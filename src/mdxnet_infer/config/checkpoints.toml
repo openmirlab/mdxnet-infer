@@ -1,0 +1,36 @@
+# Release-pinned checkpoint metadata shipped with mdxnet-infer.
+[schema]
+version = 1
+
+[package]
+name = "mdxnet-infer"
+config_revision = "2026-07-15"
+
+[metadata]
+license = "Unknown; treat as non-commercial-safe only pending author confirmation"
+provenance = "openmirlab/mdxnet-infer"
+source_revision = "weights-drumsep-v1"
+updated_at = "2026-07-15"
+
+[models.drumsep_6stem]
+model = "drumsep-6stem"
+
+[[models.drumsep_6stem.files]]
+kind = "checkpoint"
+name = "aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.ckpt"
+url = "https://github.com/openmirlab/mdxnet-infer/releases/download/weights-drumsep-v1/aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.ckpt"
+sha256 = "d2a4aa53eb584d21eead358a4e66d1882ad182911be018f052b5da73be9096d0"
+license = "Unknown; treat as non-commercial-safe only pending author confirmation"
+provenance = "openmirlab/mdxnet-infer"
+source_revision = "weights-drumsep-v1"
+updated_at = "2026-07-15"
+
+[[models.drumsep_6stem.files]]
+kind = "config"
+name = "aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.yaml"
+url = "https://github.com/openmirlab/mdxnet-infer/releases/download/weights-drumsep-v1/aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.yaml"
+sha256 = "17d1649a227f841165bdb4c11a42082898192a1ea3ceab7e7e0b9293d6589dd6"
+license = "Unknown; treat as non-commercial-safe only pending author confirmation"
+provenance = "openmirlab/mdxnet-infer"
+source_revision = "weights-drumsep-v1"
+updated_at = "2026-07-15"
