@@ -270,6 +270,76 @@ class TestMDX23CInference:
                 device="cpu",
             )
 
+    def test_device_auto_sentinel_resolves(self):
+        """The literal string 'auto' triggers the same auto-detect branch
+        as device=None, instead of reaching torch.device('auto') and
+        raising."""
+        from mdxnet_infer.inference import MDX23CInference
+        from mdxnet_infer.config import MDX23CConfig
+
+        engine = MDX23CInference(config=MDX23CConfig.drumsep_6stem(), device="auto")
+        assert isinstance(engine.device, torch.device)
+        # 'auto' must resolve to exactly what device=None auto-detects on
+        # this box (cuda/mps/cpu, whichever the machine actually has).
+        auto_engine = MDX23CInference(config=MDX23CConfig.drumsep_6stem(), device=None)
+        assert engine.device == auto_engine.device
+
+
+# ---------------------------------------------------------------------------
+# MDX23CInference.is_cached() -- cheap, non-downloading cache-status checks
+# ---------------------------------------------------------------------------
+
+class TestMDX23CInferenceIsCached:
+    """is_cached() must resolve target paths identically to _fetch_verified
+    (via the shared _target_path helper) and must never touch the network --
+    it exists so callers can ask "is it cached?" for status reporting
+    without risking a side-effecting download."""
+
+    def test_false_when_absent(self, tmp_path, monkeypatch):
+        from mdxnet_infer.inference import MDX23CInference
+        import mdxnet_infer.inference as inference
+
+        monkeypatch.setattr(inference, "download_file",
+                            lambda *a, **k: pytest.fail("network download attempted"))
+        assert MDX23CInference.is_cached("drumsep-6stem", cache_dir=tmp_path) is False
+
+    def test_true_when_both_files_present_at_fetch_verified_target_paths(self, tmp_path, monkeypatch):
+        from pathlib import Path
+        from mdxnet_infer.inference import MDX23CInference
+        import mdxnet_infer.inference as inference
+
+        monkeypatch.setattr(inference, "download_file",
+                            lambda *a, **k: pytest.fail("network download attempted"))
+        info = MDX23CInference.KNOWN_MODELS["drumsep-6stem"]
+        # Same target-path computation _fetch_verified uses (url.split('/')[-1]).
+        (tmp_path / Path(info["ckpt_url"]).name).write_bytes(b"fake checkpoint")
+        (tmp_path / Path(info["yaml_url"]).name).write_bytes(b"fake config")
+
+        assert MDX23CInference.is_cached("drumsep-6stem", cache_dir=tmp_path) is True
+
+    def test_false_when_only_checkpoint_present(self, tmp_path):
+        from pathlib import Path
+        from mdxnet_infer.inference import MDX23CInference
+
+        info = MDX23CInference.KNOWN_MODELS["drumsep-6stem"]
+        (tmp_path / Path(info["ckpt_url"]).name).write_bytes(b"fake checkpoint")
+
+        assert MDX23CInference.is_cached("drumsep-6stem", cache_dir=tmp_path) is False
+
+    def test_unknown_model_name_raises(self):
+        from mdxnet_infer.inference import MDX23CInference
+
+        with pytest.raises(ValueError, match="Unknown model"):
+            MDX23CInference.is_cached("not-a-real-model")
+
+    def test_default_cache_dir_uses_get_cache_dir(self, tmp_path, monkeypatch):
+        """No explicit cache_dir falls back to get_cache_dir(), same as
+        download_model()."""
+        from mdxnet_infer.inference import MDX23CInference
+
+        monkeypatch.setenv("MDXNET_INFER_CACHE_DIR", str(tmp_path))
+        assert MDX23CInference.is_cached() is False
+
 
 # ---------------------------------------------------------------------------
 # Utils tests

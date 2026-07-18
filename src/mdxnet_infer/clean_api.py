@@ -59,15 +59,29 @@ class MDXNetSession:
             {"checkpoint_sha256": "ckpt_sha256", "config_sha256": "yaml_sha256"}.get(key, key)
         )
 
-    def _materialize(self, path, url, sha_key):
+    def _target_path(self, path, url) -> Optional[Path]:
+        """Resolve where a checkpoint/config artifact lives on disk, without
+        touching it. An explicit ``path`` wins outright; otherwise an
+        artifact resolves under ``cache_dir`` from ``url``'s filename.
+
+        Pure path arithmetic, no I/O -- shared by :meth:`_materialize`
+        (which downloads there if missing) and :meth:`is_cached` (which
+        only checks for the file), so the two can never disagree on where
+        an artifact lives.
+        """
         if path is not None:
-            path = Path(path)
-        elif url:
+            return Path(path)
+        if url:
             root = self.cache_dir or get_cache_dir()
-            path = root / Path(url).name
-            if not path.exists():
-                download_file(url, path, progress=self.progress,
-                              expected_sha256=self._expected(sha_key))
+            return root / Path(url).name
+        return None
+
+    def _materialize(self, path, url, sha_key):
+        explicit = path is not None
+        path = self._target_path(path, url)
+        if path is not None and not explicit and not path.exists():
+            download_file(url, path, progress=self.progress,
+                          expected_sha256=self._expected(sha_key))
         if path is None:
             return None
         if not path.is_file():
@@ -140,10 +154,40 @@ class MDXNetSession:
     def close(self) -> None:
         self.release()
 
+    def is_cached(self) -> bool:
+        """True if this session's checkpoint (and config, if applicable)
+        already exist on disk, without downloading.
+
+        Mirrors :meth:`load`'s own branch condition exactly: an
+        uncustomized default session resolves via the catalog/
+        :meth:`_materialize` path today, since ``checkpoints.toml`` already
+        carries a ``drumsep-6stem`` entry -- not via
+        ``MDX23CInference.from_pretrained``, which is only reached for
+        model names absent from the catalog. Getting this branch wrong
+        would silently check the wrong location for the common case.
+
+        A customized session whose config intentionally omits a checkpoint
+        (``load()`` then constructs the engine without one) reports
+        ``False`` here: there is nothing on disk to call "cached".
+        """
+        if not self._customized and not self._engine_options and not self._metadata:
+            from .inference import MDX23CInference
+            return MDX23CInference.is_cached(self.model_name, cache_dir=self.cache_dir)
+        ckpt_url = self.checkpoint_url or self._metadata.get("checkpoint_url")
+        config_url = self._metadata.get("config_url")
+        ckpt_target = self._target_path(self.checkpoint_path, ckpt_url)
+        config_target = self._target_path(self.config_path, config_url)
+        if ckpt_target is None or not ckpt_target.is_file():
+            return False
+        if config_target is not None and not config_target.is_file():
+            return False
+        return True
+
     def cache_info(self) -> dict:
         metadata = dict(self._metadata)
         return {"model": self.model_name, "status": self._status,
                 "model_loaded": self._model is not None,
+                "cached": self.is_cached(),
                 "cache_dir": str(self.cache_dir or get_cache_dir()),
                 "checkpoint_path": str(self.checkpoint_path) if self.checkpoint_path else None,
                 "checkpoint_url": self.checkpoint_url or metadata.get("checkpoint_url"),

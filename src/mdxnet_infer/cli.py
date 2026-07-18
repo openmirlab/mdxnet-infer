@@ -50,7 +50,10 @@ def main() -> None:
     parser.add_argument(
         "--device",
         default=None,
-        help="Inference device: 'cuda', 'cpu', or 'mps' (auto-detected if omitted)",
+        help=(
+            "Inference device: 'cuda', 'cpu', 'mps', or 'auto' "
+            "(auto-detected if omitted or 'auto')"
+        ),
     )
     parser.add_argument(
         "--cache-dir",

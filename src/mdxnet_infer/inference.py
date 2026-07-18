@@ -97,14 +97,14 @@ class MDX23CInference:
                 ``config_path`` or inferred from ``model_name``.
             config_path: Path to YAML config file.
             device: Inference device (``'cuda'``, ``'cpu'``, or ``'mps'``).
-                Auto-detects if ``None``.
+                Auto-detects if ``None`` or the literal string ``'auto'``.
             model_name: Known model name (currently only ``'drumsep-6stem'``;
                 see class docstring). Used to select built-in config when
                 ``config`` and ``config_path`` are both ``None``. Raises
                 ``ValueError`` if given a name not in :attr:`KNOWN_MODELS`.
         """
         # Determine device
-        if device is None:
+        if device is None or device == 'auto':
             if torch.cuda.is_available():
                 device = 'cuda'
             elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
@@ -337,6 +337,65 @@ class MDX23CInference:
 
         return ckpt_path, yaml_path
 
+    @classmethod
+    def is_cached(
+        cls,
+        model_name: str = 'drumsep-6stem',
+        cache_dir: Optional[Union[str, Path]] = None,
+    ) -> bool:
+        """
+        Check whether a known model's checkpoint and config are already on
+        disk, without downloading or touching the network.
+
+        Resolves target paths via the same :meth:`_target_path` helper
+        :meth:`_fetch_verified` uses, so this can never disagree with
+        :meth:`download_model`/:meth:`from_pretrained` about where a
+        model's files live.
+
+        Deliberately skips sha256 verification -- this is a cheap,
+        conscious tradeoff for a status-only check, not an oversight. A
+        corrupt-but-present file reports ``True`` here even though
+        :meth:`_fetch_verified` would reject it on hash mismatch and
+        re-download.
+
+        Args:
+            model_name: ``'drumsep-6stem'`` (currently the only known model;
+                see class docstring).
+            cache_dir: Directory to check. Defaults to
+                ``~/.cache/mdxnet-infer/`` (override via the
+                ``MDXNET_INFER_CACHE_DIR`` env var; see
+                :func:`mdxnet_infer.utils.cache.get_cache_dir`).
+
+        Returns:
+            ``True`` only if both the checkpoint and config files exist.
+
+        Raises:
+            ValueError: ``model_name`` is unknown.
+        """
+        if model_name not in cls.KNOWN_MODELS:
+            raise ValueError(
+                f"Unknown model: {model_name!r}. "
+                f"Known models: {list(cls.KNOWN_MODELS.keys())}"
+            )
+
+        model_info = cls.KNOWN_MODELS[model_name]
+        cache_dir = Path(cache_dir) if cache_dir else get_cache_dir()
+
+        ckpt_path = cls._target_path(cache_dir, model_info['ckpt_url'])
+        yaml_path = cls._target_path(cache_dir, model_info['yaml_url'])
+
+        return ckpt_path.is_file() and yaml_path.is_file()
+
+    @staticmethod
+    def _target_path(cache_dir: Path, url: str) -> Path:
+        """Compute the on-disk path a download of ``url`` into ``cache_dir``
+        resolves to. Pure path arithmetic, no I/O -- shared by
+        :meth:`_fetch_verified` (which downloads there) and :meth:`is_cached`
+        (which only checks for the file), so the two can never disagree on
+        where a checkpoint or config lives.
+        """
+        return cache_dir / url.split('/')[-1]
+
     @staticmethod
     def _fetch_verified(
         url: str,
@@ -351,8 +410,8 @@ class MDX23CInference:
         re-downloaded once; a fresh download that fails verification raises
         (see :func:`mdxnet_infer.utils.download.download_file`).
         """
-        filename = url.split('/')[-1]
-        path = cache_dir / filename
+        path = MDX23CInference._target_path(cache_dir, url)
+        filename = path.name
 
         if path.exists():
             if expected_sha256 and sha256sum(path).lower() != expected_sha256.lower():
