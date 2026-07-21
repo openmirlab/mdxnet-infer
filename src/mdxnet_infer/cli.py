@@ -51,7 +51,7 @@ def main() -> None:
         "--device",
         default=None,
         help=(
-            "Inference device: 'cuda', 'cpu', 'mps', or 'auto' "
+            "Inference device: 'cuda', 'cuda:N', 'cpu', 'mps', or 'auto' "
             "(auto-detected if omitted or 'auto')"
         ),
     )

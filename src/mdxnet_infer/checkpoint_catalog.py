@@ -6,7 +6,11 @@ kept as compatibility views for callers that used the original Python table.
 
 from pathlib import Path
 from types import MappingProxyType
-import tomllib
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
+    import tomli as tomllib
 
 
 def checkpoint_config_path() -> Path:

@@ -6,8 +6,8 @@ it) and run chunked, overlap-averaged separation over arbitrary-length audio.
 through `TFC_TDF_net`, and accumulates overlapping predictions before
 dividing by `overlap` to average them back down — this is what lets a model
 trained on a few seconds of audio process an arbitrary-length track.
-`KNOWN_MODELS` hard-codes the one currently-downloadable aufr33/jarredou
-DrumSep checkpoint's org-hosted release URLs and sha256 digests; see
+`KNOWN_MODELS` is a compatibility view over the package-owned TOML catalog
+for the one currently-downloadable aufr33/jarredou DrumSep checkpoint; see
 README's Weights provenance section for provenance and for the 5-stem
 model's lost-upstream status. `download_model()` verifies sha256 on every
 fresh download and re-verifies cached files before reuse. `separate_drums()`
@@ -27,6 +27,47 @@ from .config import MDX23CConfig
 from .model import TFC_TDF_net
 from .utils.download import download_file, sha256sum
 from .utils.cache import get_cache_dir
+from .checkpoint_catalog import get_checkpoint_metadata
+
+
+def _resolve_device(device: Optional[str]) -> torch.device:
+    """Resolve and validate a public inference-device request.
+
+    ``None`` and ``"auto"`` retain the legacy preference order (CUDA, MPS,
+    CPU). Explicit requests must name an available ``cpu``, ``cuda``,
+    ``cuda:N``, or ``mps`` device; no explicit request is silently downgraded.
+    """
+    if device is None or device == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        mps = getattr(torch.backends, "mps", None)
+        if mps is not None and mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+    if device == "cpu":
+        return torch.device("cpu")
+    if not isinstance(device, str):
+        raise ValueError("device must be None, 'auto', 'cpu', 'cuda', 'cuda:N', or 'mps'")
+    if device == "mps":
+        mps = getattr(torch.backends, "mps", None)
+        if mps is None or not mps.is_available():
+            raise RuntimeError("MPS was explicitly requested but is not available")
+        return torch.device("mps")
+    if device == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA was explicitly requested but is not available")
+        return torch.device("cuda")
+    if not device.startswith("cuda:"):
+        raise ValueError("device must be None, 'auto', 'cpu', 'cuda', 'cuda:N', or 'mps'")
+    index_text = device[5:]
+    if not index_text.isdigit():
+        raise ValueError("CUDA device index must be a non-negative integer")
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA was explicitly requested but is not available")
+    index = int(index_text)
+    if index >= torch.cuda.device_count():
+        raise RuntimeError(f"CUDA device index {index} is not available")
+    return torch.device(device)
 
 
 class MDX23CInference:
@@ -57,26 +98,15 @@ class MDX23CInference:
     # control (openmirlab/mdxnet-infer GitHub Release), not a third-party
     # account — see org constitution art.4 and README's Weights provenance
     # section for the cross-mirror sha256 verification story.
+    _catalog = get_checkpoint_metadata("drumsep-6stem")
     KNOWN_MODELS = {
         'drumsep-6stem': {
             'config': 'drumsep_6stem',
             'stems': ['kick', 'snare', 'toms', 'hh', 'ride', 'crash'],
-            'ckpt_url': (
-                'https://github.com/openmirlab/mdxnet-infer/releases/download/'
-                'weights-drumsep-v1/'
-                'aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.ckpt'
-            ),
-            'yaml_url': (
-                'https://github.com/openmirlab/mdxnet-infer/releases/download/'
-                'weights-drumsep-v1/'
-                'aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.yaml'
-            ),
-            'ckpt_sha256': (
-                'd2a4aa53eb584d21eead358a4e66d1882ad182911be018f052b5da73be9096d0'
-            ),
-            'yaml_sha256': (
-                '17d1649a227f841165bdb4c11a42082898192a1ea3ceab7e7e0b9293d6589dd6'
-            ),
+            'ckpt_url': _catalog['checkpoint_url'],
+            'yaml_url': _catalog['config_url'],
+            'ckpt_sha256': _catalog['checkpoint_sha256'],
+            'yaml_sha256': _catalog['config_sha256'],
         },
     }
 
@@ -96,23 +126,15 @@ class MDX23CInference:
             config: MDX23CConfig object. If not provided, loaded from
                 ``config_path`` or inferred from ``model_name``.
             config_path: Path to YAML config file.
-            device: Inference device (``'cuda'``, ``'cpu'``, or ``'mps'``).
-                Auto-detects if ``None`` or the literal string ``'auto'``.
+            device: Inference device (``'cpu'``, ``'cuda'``, ``'cuda:N'``,
+                or ``'mps'``). Auto-detects if ``None`` or the literal string
+                ``'auto'``.
             model_name: Known model name (currently only ``'drumsep-6stem'``;
                 see class docstring). Used to select built-in config when
                 ``config`` and ``config_path`` are both ``None``. Raises
                 ``ValueError`` if given a name not in :attr:`KNOWN_MODELS`.
         """
-        # Determine device
-        if device is None or device == 'auto':
-            if torch.cuda.is_available():
-                device = 'cuda'
-            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-                device = 'mps'
-            else:
-                device = 'cpu'
-
-        self.device = torch.device(device)
+        self.device = _resolve_device(device)
         self.model_name = model_name
 
         # Load config
@@ -482,7 +504,8 @@ def separate_drums(
             pretrained model, see :class:`MDX23CInference`).
         combine_cymbals: If ``True`` and using the 6-stem model, merge
             ride + crash into a single ``cymbals`` stem.
-        device: Inference device. Auto-detected if ``None``.
+        device: Inference device. ``None``/``'auto'`` auto-detect; explicit
+            values must be ``'cpu'``, ``'cuda'``, ``'cuda:N'``, or ``'mps'``.
         cache_dir: Directory for cached model weights. Defaults to
             ``~/.cache/mdxnet-infer/`` (override via the
             ``MDXNET_INFER_CACHE_DIR`` env var).

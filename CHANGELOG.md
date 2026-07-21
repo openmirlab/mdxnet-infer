@@ -5,6 +5,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- Validate explicit inference devices early (`cpu`, `cuda`, `cuda:N`, and
+  `mps`) while preserving legacy `None`/`auto` accelerator selection and CUDA
+  index forwarding.
+- `MDXNetSession.release()` now permits reload; idempotent `close()` is
+  terminal. The legacy `KNOWN_MODELS` download compatibility view now derives
+  URL and hash metadata from packaged `config/checkpoints.toml`.
+- Add the conditional `tomli` dependency used to parse checkpoint TOML on
+  Python 3.10.
+
 ### Fixed
 - **Weights re-hosted under org control (weights-drumsep-v1 release).** The
   `drumsep-6stem` checkpoint/config's original hosting

@@ -40,7 +40,7 @@ def test_session_context_manager(monkeypatch):
                         classmethod(lambda cls, *a, **k: FakeEngine()))
     with MDXNetSession(progress=False) as session:
         assert session.status == "ready"
-    assert session.status == "released"
+    assert session.status == "closed"
 
 
 def test_custom_checkpoint_path_is_verified(tmp_path, monkeypatch):

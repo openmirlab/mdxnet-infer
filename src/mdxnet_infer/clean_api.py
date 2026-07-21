@@ -92,10 +92,10 @@ class MDXNetSession:
         return path
 
     def load(self) -> "MDXNetSession":
+        if self._status == "closed":
+            raise RuntimeError("cannot load a closed MDXNetSession")
         if self._status == "ready":
             return self
-        if self._status == "released":
-            raise RuntimeError("cannot load a released MDXNetSession")
         self._status = "loading"
         try:
             from .inference import MDX23CInference
@@ -138,6 +138,8 @@ class MDXNetSession:
         return self._model.separate(audio, sample_rate=sample_rate, **options)
 
     def release(self) -> None:
+        if self._status == "closed":
+            return
         if self._model is not None:
             model = getattr(self._model, "model", None)
             if model is not None and hasattr(model, "cpu"):
@@ -152,7 +154,10 @@ class MDXNetSession:
         self._status = "released"
 
     def close(self) -> None:
+        if self._status == "closed":
+            return
         self.release()
+        self._status = "closed"
 
     def is_cached(self) -> bool:
         """True if this session's checkpoint (and config, if applicable)
@@ -197,7 +202,7 @@ class MDXNetSession:
         return self.load()
 
     def __exit__(self, exc_type, exc, tb):
-        self.release()
+        self.close()
         return False
 
 

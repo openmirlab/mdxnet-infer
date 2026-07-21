@@ -596,6 +596,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
     { name = "soundfile" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "torch" },
     { name = "tqdm" },
 ]
@@ -621,6 +622,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.31" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5" },
     { name = "soundfile", specifier = ">=0.12.0" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.1" },
     { name = "torch", specifier = ">=2.0.0" },
     { name = "tqdm", specifier = ">=4.64" },
 ]

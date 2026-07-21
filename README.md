@@ -157,6 +157,10 @@ with MDXNetSession(model_name="drumsep-6stem", device="cpu") as session:
 
 The session is package-owned and has no dependency on a central runtime or
 catalog service; external applications can wrap it with their own policies.
+`release()` permits a later `load()`; `close()` is terminal. Device requests
+accept legacy `None`/`auto` selection (CUDA, then MPS, then CPU), or explicit
+`cpu`, `cuda`, `cuda:N`, and `mps`; malformed or unavailable explicit choices
+raise before model construction.
 
 ## Supported Models
 
