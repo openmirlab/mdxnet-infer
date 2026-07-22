@@ -164,10 +164,17 @@ class TestMDX23CInference:
 
     def test_known_models_registry(self):
         from mdxnet_infer.inference import MDX23CInference
-        assert "drumsep-6stem" in MDX23CInference.KNOWN_MODELS
-        # drumsep-5stem has no surviving original source anywhere on the
-        # web (see README) and was removed from the downloadable registry.
+        assert set(MDX23CInference.KNOWN_MODELS) == {
+            "drumsep-6stem",
+            "instvoc-hq1",
+            "instvoc-hq2",
+            "d1581",
+            "4stem-zfturbo",
+            "dereverb-aufr33-jarredou",
+            "sfx-jasper",
+        }
         assert "drumsep-5stem" not in MDX23CInference.KNOWN_MODELS
+        assert "instvoc-zfturbo" not in MDX23CInference.KNOWN_MODELS
 
     def test_known_models_have_sha256(self):
         """Every registered model's weight URLs carry a sha256 digest for
@@ -179,12 +186,8 @@ class TestMDX23CInference:
             assert info.get("yaml_sha256"), f"{name} missing yaml_sha256"
             assert len(info["ckpt_sha256"]) == 64
             assert len(info["yaml_sha256"]) == 64
-            assert info["ckpt_url"].startswith(
-                "https://github.com/openmirlab/mdxnet-infer/releases/download/"
-            )
-            assert info["yaml_url"].startswith(
-                "https://github.com/openmirlab/mdxnet-infer/releases/download/"
-            )
+            assert info["ckpt_url"].startswith("https://")
+            assert info["yaml_url"].startswith("https://")
 
     def test_stem_names_6stem(self):
         from mdxnet_infer.inference import MDX23CInference
@@ -348,7 +351,6 @@ class TestMDX23CInferenceIsCached:
 class TestUtils:
     def test_get_cache_dir_default(self):
         from mdxnet_infer.utils.cache import get_cache_dir
-        from pathlib import Path
 
         d = get_cache_dir()
         assert str(d).endswith("mdxnet-infer")

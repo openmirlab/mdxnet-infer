@@ -27,7 +27,24 @@ from .config import MDX23CConfig
 from .model import TFC_TDF_net
 from .utils.download import download_file, sha256sum
 from .utils.cache import get_cache_dir
-from .checkpoint_catalog import get_checkpoint_metadata
+from .checkpoint_catalog import get_checkpoint_metadata, list_model_names
+
+
+def _known_models() -> dict:
+    """Build the legacy URL/digest view from the registry at import time."""
+    models = {}
+    for name in list_model_names():
+        metadata = get_checkpoint_metadata(name)
+        if metadata is not None:
+            models[name] = {
+                "stems": metadata["stems"],
+                "api_family": metadata["api_family"],
+                "ckpt_url": metadata["checkpoint_url"],
+                "yaml_url": metadata["config_url"],
+                "ckpt_sha256": metadata["checkpoint_sha256"],
+                "yaml_sha256": metadata["config_sha256"],
+            }
+    return models
 
 
 def _resolve_device(device: Optional[str]) -> torch.device:
@@ -72,20 +89,16 @@ def _resolve_device(device: Optional[str]) -> torch.device:
 
 class MDX23CInference:
     """
-    MDX23C inference engine for drum audio source separation.
+    MDX23C inference engine for source separation.
 
     Handles loading models, processing audio in overlapping chunks, and
     returning separated stems as numpy arrays.
 
-    Supported pretrained models:
-
-    - ``drumsep-6stem``: kick, snare, toms, hh, ride, crash
-
-    The original ``drumsep-5stem`` checkpoint has no surviving original
-    source anywhere on the web (see README's Weights provenance section)
-    and has been removed from this registry; it may return if a verified
-    mirror surfaces. Its architecture config (:meth:`MDX23CConfig.drumsep_5stem`)
-    remains available for anyone supplying their own checkpoint file.
+    Supported pretrained models are the stable names in the package-owned
+    checkpoint registry.  They include the DrumSep model and generic
+    vocals/instrumental, dereverb, four-stem, and SFX recipes.  The legacy
+    ``drumsep-5stem`` architecture remains constructible for local weights,
+    but is intentionally not a downloadable registry entry.
 
     Example::
 
@@ -94,21 +107,9 @@ class MDX23CInference:
         # stems -> {"kick": array, "snare": array, ...}
     """
 
-    # Known model configurations with download URLs. Hosted under org
-    # control (openmirlab/mdxnet-infer GitHub Release), not a third-party
-    # account — see org constitution art.4 and README's Weights provenance
-    # section for the cross-mirror sha256 verification story.
-    _catalog = get_checkpoint_metadata("drumsep-6stem")
-    KNOWN_MODELS = {
-        'drumsep-6stem': {
-            'config': 'drumsep_6stem',
-            'stems': ['kick', 'snare', 'toms', 'hh', 'ride', 'crash'],
-            'ckpt_url': _catalog['checkpoint_url'],
-            'yaml_url': _catalog['config_url'],
-            'ckpt_sha256': _catalog['checkpoint_sha256'],
-            'yaml_sha256': _catalog['config_sha256'],
-        },
-    }
+    # Compatibility view derived from the registry -- never a second source
+    # of truth.  Legacy callers still receive the old URL/digest key names.
+    KNOWN_MODELS = _known_models()
 
     def __init__(
         self,
@@ -151,11 +152,14 @@ class MDX23CInference:
                     "custom or no-longer-registered architecture "
                     "(e.g. MDX23CConfig.drumsep_5stem())."
                 )
-            config_method = getattr(
-                MDX23CConfig,
-                self.KNOWN_MODELS[model_name]['config']
-            )
-            self.config = config_method()
+            metadata = get_checkpoint_metadata(model_name)
+            assert metadata is not None  # guarded by KNOWN_MODELS above
+            recipe = dict(metadata["recipe"])
+            recipe["training"] = {
+                "instruments": metadata["stems"],
+                "target_instrument": metadata["target_instrument"],
+            }
+            self.config = MDX23CConfig.from_mapping(recipe)
         else:
             # Default to 6-stem config
             self.config = MDX23CConfig.drumsep_6stem()
@@ -190,7 +194,8 @@ class MDX23CInference:
     @property
     def stem_names(self) -> List[str]:
         """List of stem names produced by this model."""
-        return list(self.config.training.instruments)
+        target = self.config.training.target_instrument
+        return [target] if target is not None else list(self.config.training.instruments)
 
     def separate(
         self,
@@ -297,7 +302,13 @@ class MDX23CInference:
         stems: Dict[str, np.ndarray] = {}
         output_np = output.cpu().detach().numpy()
 
-        for i, stem_name in enumerate(self.config.training.instruments):
+        stem_names = self.stem_names
+        if len(stem_names) != num_stems:
+            raise RuntimeError(
+                "MDX23C output heads do not match configured stem names; "
+                "provide an explicit target-instrument output contract"
+            )
+        for i, stem_name in enumerate(stem_names):
             if num_stems > 1:
                 stem_audio = output_np[i]  # (channels, samples)
             else:
@@ -318,8 +329,7 @@ class MDX23CInference:
         Download a known pretrained model to cache.
 
         Args:
-            model_name: ``'drumsep-6stem'`` (currently the only known model;
-                see class docstring).
+            model_name: Stable name returned by :func:`list_model_names`.
             cache_dir: Directory to cache model files. Defaults to
                 ``~/.cache/mdxnet-infer/`` (override via the
                 ``MDXNET_INFER_CACHE_DIR`` env var; see
@@ -381,8 +391,7 @@ class MDX23CInference:
         re-download.
 
         Args:
-            model_name: ``'drumsep-6stem'`` (currently the only known model;
-                see class docstring).
+            model_name: Stable name returned by :func:`list_model_names`.
             cache_dir: Directory to check. Defaults to
                 ``~/.cache/mdxnet-infer/`` (override via the
                 ``MDXNET_INFER_CACHE_DIR`` env var; see
@@ -416,7 +425,9 @@ class MDX23CInference:
         (which only checks for the file), so the two can never disagree on
         where a checkpoint or config lives.
         """
-        return cache_dir / url.split('/')[-1]
+        from urllib.parse import urlparse
+
+        return cache_dir / Path(urlparse(url).path).name
 
     @staticmethod
     def _fetch_verified(
@@ -462,7 +473,7 @@ class MDX23CInference:
         Load a pretrained model by name, downloading weights if needed.
 
         Args:
-            model_name: ``'drumsep-6stem'`` or ``'drumsep-5stem'``.
+            model_name: Stable name returned by :func:`list_model_names`.
             cache_dir: Directory for cached model files.
             device: Inference device.
             progress: Show download progress.
@@ -482,7 +493,7 @@ class MDX23CInference:
         )
 
 
-def separate_drums(
+def separate_file(
     audio_path: Union[str, Path],
     output_dir: Optional[Union[str, Path]] = None,
     model_name: str = 'drumsep-6stem',
@@ -492,7 +503,7 @@ def separate_drums(
     progress: bool = True,
 ) -> Dict[str, Path]:
     """
-    Separate a drum audio file into individual stem files.
+    Separate an audio file into the registered model's stem files.
 
     Downloads the pretrained model automatically on first use.
 
@@ -500,10 +511,9 @@ def separate_drums(
         audio_path: Path to input audio file.
         output_dir: Directory for output WAV files. Defaults to same
             directory as ``audio_path``.
-        model_name: ``'drumsep-6stem'`` (default; currently the only known
-            pretrained model, see :class:`MDX23CInference`).
-        combine_cymbals: If ``True`` and using the 6-stem model, merge
-            ride + crash into a single ``cymbals`` stem.
+        model_name: Stable name returned by :func:`list_model_names`.
+        combine_cymbals: DrumSep-only compatibility option. Generic models
+            reject it rather than inheriting drum semantics.
         device: Inference device. ``None``/``'auto'`` auto-detect; explicit
             values must be ``'cpu'``, ``'cuda'``, ``'cuda:N'``, or ``'mps'``.
         cache_dir: Directory for cached model weights. Defaults to
@@ -514,6 +524,12 @@ def separate_drums(
     Returns:
         Dictionary mapping stem names to output file paths.
     """
+    metadata = get_checkpoint_metadata(model_name)
+    if metadata is None:
+        raise ValueError(f"Unknown model: {model_name!r}. Known models: {list_model_names()}")
+    if combine_cymbals and metadata["api_family"] != "drumsep":
+        raise ValueError("combine_cymbals is only valid for drumsep-6stem")
+
     import soundfile as sf
     import librosa
 
@@ -568,3 +584,33 @@ def separate_drums(
             print(f"  Saved: {output_path.name}")
 
     return output_paths
+
+
+def separate_drums(
+    audio_path: Union[str, Path],
+    output_dir: Optional[Union[str, Path]] = None,
+    model_name: str = "drumsep-6stem",
+    combine_cymbals: bool = False,
+    device: Optional[str] = None,
+    cache_dir: Optional[Union[str, Path]] = None,
+    progress: bool = True,
+) -> Dict[str, Path]:
+    """DrumSep-only file convenience wrapper.
+
+    Generic MDX23C models must use :func:`separate_file`, making it impossible
+    for their stems to silently acquire DrumSep-only cymbal semantics.
+    """
+    metadata = get_checkpoint_metadata(model_name)
+    if metadata is None or metadata["api_family"] != "drumsep":
+        raise ValueError(
+            f"{model_name!r} is not a DrumSep model; use separate_file() instead"
+        )
+    return separate_file(
+        audio_path,
+        output_dir=output_dir,
+        model_name=model_name,
+        combine_cymbals=combine_cymbals,
+        device=device,
+        cache_dir=cache_dir,
+        progress=progress,
+    )

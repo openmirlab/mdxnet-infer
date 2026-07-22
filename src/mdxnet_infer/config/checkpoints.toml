@@ -1,19 +1,27 @@
 # Release-pinned checkpoint metadata shipped with mdxnet-infer.
+# This file is the only registry authority. Checkpoint bytes stay remote.
 [schema]
-version = 1
+version = 2
 
 [package]
 name = "mdxnet-infer"
-config_revision = "2026-07-15"
+config_revision = "2026-07-22"
 
 [metadata]
-license = "Unknown; treat as non-commercial-safe only pending author confirmation"
-provenance = "openmirlab/mdxnet-infer"
-source_revision = "weights-drumsep-v1"
-updated_at = "2026-07-15"
+license = "Unknown; model authors' license is not established by the mirror"
+provenance = "community checkpoint mirror; original model authors are recorded per recipe"
+source_revision = "cf01b871f6c324c11c828b18ad05658656e9ae7f"
+updated_at = "2026-07-22"
 
 [models.drumsep_6stem]
 model = "drumsep-6stem"
+stems = ["kick", "snare", "toms", "hh", "ride", "crash"]
+target_instrument = ""
+api_family = "drumsep"
+recipe = { audio = { chunk_size = 130560, dim_f = 1024, dim_t = 256, hop_length = 512, n_fft = 2048, num_channels = 2, sample_rate = 44100, min_mean_abs = 0.001 }, model = { act = "gelu", bottleneck_factor = 4, growth = 128, norm = "InstanceNorm", num_blocks_per_scale = 2, num_channels = 128, num_scales = 5, num_subbands = 4, scale = [2, 2] }, inference = { batch_size = 1, dim_t = 256, num_overlap = 4 } }
+provenance = "aufr33/jarredou DrumSep; OpenMIRLab release mirror"
+source_revision = "weights-drumsep-v1"
+updated_at = "2026-07-15"
 
 [[models.drumsep_6stem.files]]
 kind = "checkpoint"
@@ -21,7 +29,7 @@ name = "aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.ckpt"
 url = "https://github.com/openmirlab/mdxnet-infer/releases/download/weights-drumsep-v1/aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.ckpt"
 sha256 = "d2a4aa53eb584d21eead358a4e66d1882ad182911be018f052b5da73be9096d0"
 license = "Unknown; treat as non-commercial-safe only pending author confirmation"
-provenance = "openmirlab/mdxnet-infer"
+provenance = "aufr33/jarredou DrumSep; OpenMIRLab release mirror"
 source_revision = "weights-drumsep-v1"
 updated_at = "2026-07-15"
 
@@ -31,6 +39,132 @@ name = "aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.yaml"
 url = "https://github.com/openmirlab/mdxnet-infer/releases/download/weights-drumsep-v1/aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.yaml"
 sha256 = "17d1649a227f841165bdb4c11a42082898192a1ea3ceab7e7e0b9293d6589dd6"
 license = "Unknown; treat as non-commercial-safe only pending author confirmation"
-provenance = "openmirlab/mdxnet-infer"
+provenance = "aufr33/jarredou DrumSep; OpenMIRLab release mirror"
 source_revision = "weights-drumsep-v1"
 updated_at = "2026-07-15"
+
+[models.instvoc_hq1]
+model = "instvoc-hq1"
+aliases = ["mdx23c_instvoc_hq1"]
+stems = ["Vocals", "Instrumental"]
+target_instrument = ""
+api_family = "generic"
+recipe = { audio = { chunk_size = 261120, dim_f = 4096, dim_t = 256, hop_length = 1024, n_fft = 8192, num_channels = 2, sample_rate = 44100, min_mean_abs = 0.001 }, model = { act = "gelu", bottleneck_factor = 4, growth = 128, norm = "InstanceNorm", num_blocks_per_scale = 2, num_channels = 128, num_scales = 5, num_subbands = 4, scale = [2, 2] }, inference = { batch_size = 1, dim_t = 256, num_overlap = 2 } }
+provenance = "community mirror `noblebarkrr/mvsepless_resources`; model attribution: InstVoc HQ 1"
+
+[[models.instvoc_hq1.files]]
+kind = "checkpoint"
+name = "mdx23c_instvoc_hq1.ckpt"
+url = "https://huggingface.co/noblebarkrr/mvsepless_resources/resolve/cf01b871f6c324c11c828b18ad05658656e9ae7f/mdx23c/mdx23c_instvoc_hq1.ckpt"
+sha256 = "49d51472769e34a2501cd1da782346a3212555c3a5619fc2c53507445528d816"
+
+[[models.instvoc_hq1.files]]
+kind = "config"
+name = "mdx23c_instvoc_hq1_config.yaml"
+url = "https://huggingface.co/noblebarkrr/mvsepless_resources/resolve/cf01b871f6c324c11c828b18ad05658656e9ae7f/mdx23c/mdx23c_instvoc_hq1_config.yaml"
+sha256 = "b141668e9c2034e360ad783284caef16dc20b2faf105a043b9aed9bb23dc01e1"
+
+[models.instvoc_hq2]
+model = "instvoc-hq2"
+aliases = ["mdx23c_instvoc_hq2"]
+stems = ["Vocals", "Instrumental"]
+target_instrument = ""
+api_family = "generic"
+recipe = { audio = { chunk_size = 261120, dim_f = 4096, dim_t = 256, hop_length = 1024, n_fft = 8192, num_channels = 2, sample_rate = 44100, min_mean_abs = 0.001 }, model = { act = "gelu", bottleneck_factor = 4, growth = 128, norm = "InstanceNorm", num_blocks_per_scale = 2, num_channels = 128, num_scales = 5, num_subbands = 4, scale = [2, 2] }, inference = { batch_size = 1, dim_t = 256, num_overlap = 2 } }
+provenance = "community mirror `noblebarkrr/mvsepless_resources`; model attribution: InstVoc HQ 2"
+
+[[models.instvoc_hq2.files]]
+kind = "checkpoint"
+name = "mdx23c_instvoc_hq2.ckpt"
+url = "https://huggingface.co/noblebarkrr/mvsepless_resources/resolve/cf01b871f6c324c11c828b18ad05658656e9ae7f/mdx23c/mdx23c_instvoc_hq2.ckpt"
+sha256 = "7d960d8e40a458120412c1bd807e013d2dbca7b959cc9da2bbcb0eb203d1daea"
+
+[[models.instvoc_hq2.files]]
+kind = "config"
+name = "mdx23c_instvoc_hq2_config.yaml"
+url = "https://huggingface.co/noblebarkrr/mvsepless_resources/resolve/cf01b871f6c324c11c828b18ad05658656e9ae7f/mdx23c/mdx23c_instvoc_hq2_config.yaml"
+sha256 = "b141668e9c2034e360ad783284caef16dc20b2faf105a043b9aed9bb23dc01e1"
+
+[models.d1581]
+model = "d1581"
+aliases = ["mdx23c_d1581"]
+stems = ["Vocals", "Instrumental"]
+target_instrument = ""
+api_family = "generic"
+recipe = { audio = { chunk_size = 260096, dim_f = 4096, dim_t = 256, hop_length = 2048, n_fft = 12288, num_channels = 2, sample_rate = 44100, min_mean_abs = 0.001 }, model = { act = "gelu", bottleneck_factor = 4, growth = 64, norm = "InstanceNorm", num_blocks_per_scale = 2, num_channels = 128, num_scales = 5, num_subbands = 4, scale = [2, 2] }, inference = { batch_size = 1, dim_t = 256, num_overlap = 2 } }
+provenance = "community mirror `noblebarkrr/mvsepless_resources`; model attribution: D1581"
+
+[[models.d1581.files]]
+kind = "checkpoint"
+name = "mdx23c_d1581.ckpt"
+url = "https://huggingface.co/noblebarkrr/mvsepless_resources/resolve/cf01b871f6c324c11c828b18ad05658656e9ae7f/mdx23c/mdx23c_d1581.ckpt"
+sha256 = "d7d4d2137f12764950205b095da20032fef1d41f077bacc8582f20ed40e8cb28"
+
+[[models.d1581.files]]
+kind = "config"
+name = "mdx23c_d1581_config.yaml"
+url = "https://huggingface.co/noblebarkrr/mvsepless_resources/resolve/cf01b871f6c324c11c828b18ad05658656e9ae7f/mdx23c/mdx23c_d1581_config.yaml"
+sha256 = "a362bc6f6f36512dda175ba2821334df941394b82abfe253abc83ce884519a1b"
+
+[models.fourstem_zfturbo]
+model = "4stem-zfturbo"
+aliases = ["mdx23c_4stem_zfturbo"]
+stems = ["vocals", "bass", "drums", "other"]
+target_instrument = ""
+api_family = "generic"
+recipe = { audio = { chunk_size = 261120, dim_f = 4096, dim_t = 256, hop_length = 1024, n_fft = 8192, num_channels = 2, sample_rate = 44100, min_mean_abs = 0.001 }, model = { act = "gelu", bottleneck_factor = 4, growth = 128, norm = "InstanceNorm", num_blocks_per_scale = 2, num_channels = 128, num_scales = 5, num_subbands = 4, scale = [2, 2] }, inference = { batch_size = 1, dim_t = 256, num_overlap = 2 } }
+provenance = "community mirror `noblebarkrr/mvsepless_resources`; model attribution: ZFTurbo"
+
+[[models.fourstem_zfturbo.files]]
+kind = "checkpoint"
+name = "mdx23c_4stem_zfturbo.ckpt"
+url = "https://huggingface.co/noblebarkrr/mvsepless_resources/resolve/cf01b871f6c324c11c828b18ad05658656e9ae7f/mdx23c/mdx23c_4stem_zfturbo.ckpt"
+sha256 = "c1d31e3c47a98e8cdb12b3382a1a313c1a95c835da4310dd6350e7e1892f821c"
+
+[[models.fourstem_zfturbo.files]]
+kind = "config"
+name = "mdx23c_4stem_zfturbo_config.yaml"
+url = "https://huggingface.co/noblebarkrr/mvsepless_resources/resolve/cf01b871f6c324c11c828b18ad05658656e9ae7f/mdx23c/mdx23c_4stem_zfturbo_config.yaml"
+sha256 = "2410d52f71b9fbe9c84c77cad7c98cc5fbb95aff4abdb596ed17d1aa6488cced"
+
+[models.dereverb_aufr33_jarredou]
+model = "dereverb-aufr33-jarredou"
+aliases = ["mdx23c_dereverb_aufr33_jarredou"]
+stems = ["dry", "other"]
+target_instrument = ""
+api_family = "generic"
+recipe = { audio = { chunk_size = 261120, dim_f = 4096, dim_t = 256, hop_length = 1024, n_fft = 8192, num_channels = 2, sample_rate = 44100, min_mean_abs = 0.001 }, model = { act = "gelu", bottleneck_factor = 4, growth = 128, norm = "InstanceNorm", num_blocks_per_scale = 2, num_channels = 128, num_scales = 5, num_subbands = 4, scale = [2, 2] }, inference = { batch_size = 1, dim_t = 256, num_overlap = 2 } }
+provenance = "community mirror `noblebarkrr/mvsepless_resources`; model attribution: aufr33/jarredou"
+
+[[models.dereverb_aufr33_jarredou.files]]
+kind = "checkpoint"
+name = "mdx23c_dereverb_aufr33_jarredou.ckpt"
+url = "https://huggingface.co/noblebarkrr/mvsepless_resources/resolve/cf01b871f6c324c11c828b18ad05658656e9ae7f/mdx23c/mdx23c_dereverb_aufr33_jarredou.ckpt"
+sha256 = "eae2471b707758d74db38ac1b1d5800e12f57c4e9d1ebbb2faf004b8e086e914"
+
+[[models.dereverb_aufr33_jarredou.files]]
+kind = "config"
+name = "mdx23c_dereverb_aufr33_jarredou_config.yaml"
+url = "https://huggingface.co/noblebarkrr/mvsepless_resources/resolve/cf01b871f6c324c11c828b18ad05658656e9ae7f/mdx23c/mdx23c_dereverb_aufr33_jarredou_config.yaml"
+sha256 = "0b8c8323d0d3d42f853e0ee8ac3c181e1e18203b5da53766e07c94b6e7f9145c"
+
+[models.sfx_jasper]
+model = "sfx-jasper"
+aliases = ["mdx23c_sfx_jasper"]
+stems = ["foreground", "background"]
+target_instrument = ""
+api_family = "generic"
+recipe = { audio = { chunk_size = 261120, dim_f = 4096, dim_t = 256, hop_length = 1024, n_fft = 8192, num_channels = 2, sample_rate = 44100, min_mean_abs = 0.001 }, model = { act = "gelu", bottleneck_factor = 4, growth = 128, norm = "InstanceNorm", num_blocks_per_scale = 2, num_channels = 128, num_scales = 5, num_subbands = 4, scale = [2, 2] }, inference = { batch_size = 1, dim_t = 256, num_overlap = 2 } }
+provenance = "community mirror `noblebarkrr/mvsepless_resources`; model attribution: Jasper"
+
+[[models.sfx_jasper.files]]
+kind = "checkpoint"
+name = "mdx23c_sfx_jasper.ckpt"
+url = "https://huggingface.co/noblebarkrr/mvsepless_resources/resolve/cf01b871f6c324c11c828b18ad05658656e9ae7f/mdx23c/mdx23c_sfx_jasper.ckpt"
+sha256 = "527f0a98e106fc4e2ad939a8c09d4f59966aa13272c31a530b36598f81c0edd3"
+
+[[models.sfx_jasper.files]]
+kind = "config"
+name = "mdx23c_sfx_jasper_config.yaml"
+url = "https://huggingface.co/noblebarkrr/mvsepless_resources/resolve/cf01b871f6c324c11c828b18ad05658656e9ae7f/mdx23c/mdx23c_sfx_jasper_config.yaml"
+sha256 = "8c131be50799ee18e9a93799b15487e16d2fa327305026e73596803e60572b1a"

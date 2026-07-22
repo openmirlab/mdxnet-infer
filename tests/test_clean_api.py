@@ -56,6 +56,34 @@ def test_path_rejects_conflicting_rate_and_delegates(monkeypatch, tmp_path):
         helper(path, sample_rate=44100)
 
 
+def test_generic_model_path_uses_generic_workflow_not_drumsep(monkeypatch, tmp_path):
+    """Generic recipes never enter DrumSep's cymbal-specific path."""
+    import mdxnet_infer.inference as inference
+
+    calls = []
+
+    def fake_separate_file(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {"Vocals": Path("vocals.wav")}
+
+    monkeypatch.setattr(
+        inference,
+        "separate_drums",
+        lambda *args, **kwargs: pytest.fail("generic model entered DrumSep workflow"),
+    )
+    monkeypatch.setattr(inference, "separate_file", fake_separate_file)
+    path = tmp_path / "mix.wav"
+    path.touch()
+
+    result = MDXNetSeparator(model_name="d1581", progress=False)(path)
+
+    assert result == {"Vocals": Path("vocals.wav")}
+    assert calls == [
+        ((path,), {"output_dir": None, "model_name": "d1581", "device": None,
+                   "cache_dir": None, "progress": False})
+    ]
+
+
 def test_helper_reuses_engine_and_one_shot_builds_fresh(monkeypatch):
     engines = []
 
@@ -81,4 +109,3 @@ def test_advanced_engine_surface_remains_available():
     from mdxnet_infer.inference import MDX23CInference
 
     assert callable(MDX23CInference.separate)
-

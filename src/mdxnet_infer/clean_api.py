@@ -210,9 +210,10 @@ class MDXNetSeparator:
     """Reusable MDX23C source-separation helper.
 
     In-memory calls lazily create and cache one :class:`MDX23CInference`
-    engine.  Path calls delegate to the compatible ``separate_drums``
-    file-writing workflow, preserving its output-path contract.  One-shot
-    functions create a fresh helper and therefore never share model state.
+    engine.  Path calls select the DrumSep-only or generic file workflow from
+    registry metadata, preserving output-path compatibility without applying
+    drum semantics to generic recipes.  One-shot functions create a fresh
+    helper and therefore never share model state.
     """
 
     def __init__(self, engine=None, *, model_name: str = "drumsep-6stem",
@@ -246,13 +247,27 @@ class MDXNetSeparator:
                  output_dir=None, combine_cymbals: bool = False):
         """Separate a path or waveform, delegating to existing APIs.
 
-        Path inputs use the existing file-in/files-out ``separate_drums``
-        function.  Array-like inputs require an explicit positive
+        Path inputs use the registry-selected file-in/files-out function.
+        Array-like inputs require an explicit positive
         ``sample_rate`` and return the engine's stem dictionary.
         """
         if isinstance(source, (str, Path)):
             if sample_rate is not None:
                 raise ValueError("sample_rate is not accepted for path inputs")
+            metadata = get_checkpoint_metadata(self.model_name)
+            if metadata is not None and metadata["api_family"] == "generic":
+                if combine_cymbals:
+                    raise ValueError("combine_cymbals is only valid for drumsep-6stem")
+                from .inference import separate_file
+
+                return separate_file(
+                    source,
+                    output_dir=output_dir,
+                    model_name=self.model_name,
+                    device=self.device,
+                    cache_dir=self.cache_dir,
+                    progress=self.progress,
+                )
             from .inference import separate_drums
 
             return separate_drums(

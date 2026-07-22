@@ -5,6 +5,23 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Expanded the package-owned MDX23C registry from DrumSep alone to seven
+  SHA-verified recipes: InstVoc HQ1/HQ2, D1581, ZFTurbo 4-stem, aufr33/jarredou
+  dereverb, and Jasper SFX alongside DrumSep. The TOML registry is now the
+  single authority for model recipes, exact stems, pinned artifact URLs,
+  full SHA-256 digests, provenance, source revisions, and license caveats.
+- Added generic `separate_file()` routing for non-DrumSep models. DrumSep-only
+  cymbal combining remains isolated in `separate_drums()`.
+
+### Changed
+- `MDX23CInference`, `MDXNetSession`, `MDXNetSeparator`, cache inspection,
+  and CLI choices now resolve stable model names from the packaged registry;
+  flattened checkpoint/config metadata remains as a compatibility view.
+- Added explicit exclusions: `instvoc-zfturbo` duplicates HQ1 bytes,
+  `drumsep-5stem` has unresolved provenance, and `mid_side` / `orch` need a
+  target-instrument output contract.
+
 ### Changed
 - Validate explicit inference devices early (`cpu`, `cuda`, `cuda:N`, and
   `mps`) while preserving legacy `None`/`auto` accelerator selection and CUDA

@@ -1,8 +1,8 @@
 # mdxnet-infer
 
-Inference-only MDX23C TFC-TDF drum stem separation. Ships one community
-DrumSep checkpoint (6-stem) by aufr33/jarredou, org-hosted. No training code.
-The 5-stem checkpoint is lost upstream (see below).
+Inference-only MDX23C TFC-TDF source separation. Ships a package-owned
+registry of DrumSep and generic community recipes; no training code and no
+bundled weights. `drumsep-5stem` remains a local-weights-only architecture.
 
 ## Scope
 
@@ -12,6 +12,12 @@ The 5-stem checkpoint is lost upstream (see below).
   its internal layout is tied to how the pretrained `.ckpt` state dicts are
   keyed, so don't restructure it without re-verifying `load_state_dict`
   against a real checkpoint.
+- `src/mdxnet_infer/config/checkpoints.toml` — the sole registry authority:
+  stable public names, exact output stems, API family, constructible recipe,
+  and full provenance for checkpoint/config artifacts. Do not copy URLs,
+  SHA-256 values, or model lists into Python.
+- `src/mdxnet_infer/checkpoint_catalog.py` — validates the TOML and exposes
+  both rich recipe metadata and old flattened checkpoint/config views.
 - `src/mdxnet_infer/config.py` — `MDX23CConfig` dataclass tree (audio/model/
   training/inference), loadable from the YAML shipped alongside each
   checkpoint, plus two hard-coded presets (`drumsep_6stem`, `drumsep_5stem`)
@@ -19,14 +25,12 @@ The 5-stem checkpoint is lost upstream (see below).
   is kept even though its checkpoint is unavailable (see below), in case a
   user supplies their own weights or a mirror surfaces.
 - `src/mdxnet_infer/inference.py` — `MDX23CInference` (load + chunked
-  overlap-add separation) and `separate_drums()` (file-in/files-out
-  convenience wrapper used by the CLI and the top-level `separate` alias).
-  `KNOWN_MODELS` hard-codes `drumsep-6stem`'s org-hosted GitHub Release
-  download URLs and sha256 digests (`download_model()` verifies both fresh
-  downloads and cached files against them). `drumsep-5stem` is not in
-  `KNOWN_MODELS` — see "Known, deliberately unfixed issues" below.
+  overlap-add separation), generic `separate_file()`, and DrumSep-only
+  `separate_drums()`. `KNOWN_MODELS` is a compatibility view derived from
+  the TOML; it must never become a second registry. Generic recipes must not
+  acquire cymbal or other DrumSep post-processing semantics.
 - `src/mdxnet_infer/cli.py` — argparse entry point (`mdxnet-infer` console
-  script), thin pass-through to `separate_drums()`.
+  script), dynamic stable-name selection, and generic file routing.
 - `src/mdxnet_infer/utils/` — `download.py` (streamed HTTP download),
   `cache.py` (cache dir resolution, env-overridable), `stems.py` (post-hoc
   stem combination: ride+crash -> cymbals, etc.).
@@ -82,6 +86,11 @@ docstring (see `model.py`).
   non-commercial-safe only until the original authors confirm terms — see
   README's "Weights provenance" section. Not resolved here; this is a
   release-gate blocker, not a doc-fixable gap.
+- **Excluded MDX23C candidates are deliberate.** `instvoc-zfturbo` duplicates
+  HQ1's full checkpoint SHA; `drumsep-5stem` remains provenance-pending; and
+  `mid_side` / `orch` use `target_instrument`, so exposing their one-output
+  semantics requires a dedicated public contract. Do not add them merely
+  because their architecture loads.
 - README's original citation ("Kimberley Jensen et al." / an invented paper
   title) was fabricated and has been corrected to the real arXiv:2305.07489
   citation (Solovyev, Stempkovskiy, Habruseva) as used by upstream MSST.

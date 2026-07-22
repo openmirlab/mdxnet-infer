@@ -69,6 +69,20 @@ class MDX23CConfig:
         with open(yaml_path, 'r') as f:
             data = yaml.load(f, Loader=yaml.FullLoader)
 
+        return cls.from_mapping(data)
+
+    @classmethod
+    def from_mapping(cls, data: dict) -> 'MDX23CConfig':
+        """Build a configuration from a YAML- or registry-shaped mapping.
+
+        The registry stores the architecture needed to construct a named
+        model before its remote YAML artifact is materialized.  Unknown
+        training-only fields are intentionally ignored, just as for the
+        source YAML files.
+        """
+        if not isinstance(data, dict):
+            raise ValueError("MDX23C config must be a mapping")
+
         audio_data = data.get('audio', {})
         model_data = data.get('model', {})
         training_data = data.get('training', {})

@@ -10,12 +10,14 @@ import argparse
 import sys
 from pathlib import Path
 
+from .checkpoint_catalog import list_model_names
+
 
 def main() -> None:
     """Entry point for the ``mdxnet-infer`` CLI command."""
     parser = argparse.ArgumentParser(
         prog="mdxnet-infer",
-        description="MDX23C TFC-TDF drum source separation",
+        description="MDX23C TFC-TDF source separation",
     )
     parser.add_argument(
         "input",
@@ -32,10 +34,10 @@ def main() -> None:
     parser.add_argument(
         "--model",
         default="drumsep-6stem",
-        choices=["drumsep-6stem"],
+        choices=list_model_names(),
         help=(
-            "Pretrained model to use (default: drumsep-6stem). "
-            "drumsep-5stem is currently unavailable -- see README."
+            "Pretrained registry model to use (default: drumsep-6stem). "
+            "Run --help to see the currently packaged names."
         ),
     )
     parser.add_argument(
@@ -79,10 +81,10 @@ def main() -> None:
         print(f"Error: input file not found: {args.input}", file=sys.stderr)
         sys.exit(1)
 
-    from .inference import separate_drums
+    from .inference import separate_file
 
     try:
-        output_paths = separate_drums(
+        output_paths = separate_file(
             audio_path=args.input,
             output_dir=args.output_dir,
             model_name=args.model,
