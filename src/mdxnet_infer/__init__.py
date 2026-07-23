@@ -27,6 +27,7 @@ from .clean_api import MDXNetSeparator, MDXNetSession, separate_file, separate_t
 from .checkpoint_catalog import CHECKPOINT_CATALOG, get_checkpoint_metadata
 
 __all__ = [
+    "__version__",
     "TFC_TDF_net",
     "MDX23CInference",
     "MDX23CConfig",
