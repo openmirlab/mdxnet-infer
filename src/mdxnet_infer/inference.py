@@ -515,8 +515,9 @@ def separate_file(
         backend: Compute backend: ``None``/``'torch'`` (default, unchanged
             behaviour), ``'mlx'`` (Apple Silicon, needs the ``[mlx]`` extra),
             or ``'auto'`` (prefers ``'mlx'`` when it can actually run here).
-            ``device`` keeps its Torch meaning and is ignored by the MLX
-            backend, which owns its own execution target.
+            ``device`` keeps its Torch meaning; the MLX backend owns its
+            own execution target and accepts only ``None``/``"auto"``/``"mps"``,
+            raising for anything else rather than ignoring it.
 
     Returns:
         Dictionary mapping stem names to output file paths.

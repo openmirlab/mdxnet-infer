@@ -52,9 +52,10 @@ mdxnet-infer is built on the MDX23C TFC-TDF architecture and the DrumSep model w
 
 `backend` selects which framework computes (`"torch"` default, `"mlx"`, or
 `"auto"`); `device` keeps its existing Torch meaning (`None`/`"auto"`, `"cpu"`,
-`"cuda"`, `"cuda:N"`, `"mps"`) and is ignored by the MLX backend, which owns
-its own execution target. `backend` defaults to `"torch"`, so a caller who
-never mentions it gets exactly today's behaviour, unchanged.
+`"cuda"`, `"cuda:N"`, `"mps"`). `backend="mlx"` owns its own Apple Silicon
+execution and accepts only `device` of `None`/`"auto"`/`"mps"`, refusing
+anything else rather than ignoring it. `backend` defaults to `"torch"`, so a
+caller who never mentions it gets exactly today's behaviour, unchanged.
 
 ```python
 from mdxnet_infer import separate_file
@@ -74,6 +75,12 @@ mdxnet-infer drums.wav -o output/ --model drumsep-6stem --backend mlx
 ```
 
 ### The MLX backend
+
+Install it with the extra, which is never part of the core install:
+
+```bash
+pip install "mdxnet-infer[mlx]"
+```
 
 `src/mdxnet_infer/mlx/model.py` vendors `TfcTdfV3MLX`, a native-MLX port of
 the same TFC-TDF v3 architecture `model.py`'s `TFC_TDF_net` implements,
@@ -119,6 +126,16 @@ non-attention architecture: removing it and re-running the same three cases
 moved every one by less than 1e-6, still inside the same noise floor (see
 `mlx/model.py`'s module docstring for the full measurement and the
 mechanism this architecture lacks).
+
+MPS and MLX both need an **arm64 Python interpreter**. Under Rosetta/x86_64
+they report as unavailable rather than failing loudly -- an x86_64
+interpreter makes `torch.backends.mps.is_available()` return `False`, and
+MLX fails to run correctly, so an accelerated path just looks absent rather
+than misconfigured. This is easy to hit without noticing: an x86_64 `uv`
+resolves x86_64 interpreters, so `uv sync` can silently produce an
+environment where the accelerated paths structurally cannot exist. Check
+with `python -c "import platform; print(platform.machine())"` -- it must
+print `arm64`.
 
 ## Scope
 

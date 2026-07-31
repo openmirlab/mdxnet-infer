@@ -89,7 +89,7 @@ fixture, real-checkpoint and `realweights`-marked.
 ## MLX backend (Apple Silicon)
 
 Optional, additive `backend="torch"` (default, unchanged) / `"mlx"` /
-`"auto"` axis; `device` keeps its Torch meaning and is ignored by MLX. See
+`"auto"` axis; `device` keeps its Torch meaning; the MLX backend accepts only `None`/`auto`/`mps` for it and raises for anything else rather than ignoring it. See
 README's "Backends and devices" section for the public contract and
 `src/mdxnet_infer/backends/` above for the seam. Measured Torch-vs-MLX
 parity on the real `drumsep-6stem` checkpoint, through the public
