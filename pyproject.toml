@@ -37,6 +37,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Optional MLX backend (Apple Silicon). Kept out of the core install so a plain
+# `pip install mdxnet-infer` stays framework-light and importable everywhere;
+# `import mdxnet_infer` never imports mlx. Floors only, no ceilings:
+# mlx-audio-separator was deliberately NOT taken as a dependency because it
+# pins mlx to an exact version and ships a compiled mlx-audio-io backend, and
+# the vendored model path never imports either. mlx-spectro is needed: the
+# vendored model has no windowed-STFT primitive of its own and mlx-spectro is
+# what upstream's own MLX MDX23C port uses for it.
+mlx = [
+    "mlx>=0.31",
+    "mlx-spectro>=0.7",
+]
 dev = [
     "pytest>=7.0",
     "ruff>=0.5",
@@ -67,3 +79,9 @@ dev-dependencies = [
     "pytest>=7.0",
     "ruff>=0.5",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "realweights: needs a real checkpoint already on disk and specific hardware (deselected by default, run with -m realweights)",
+]
+addopts = "-m 'not realweights'"

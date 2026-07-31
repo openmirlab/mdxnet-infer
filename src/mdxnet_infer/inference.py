@@ -14,7 +14,8 @@ fresh download and re-verifies cached files before reuse. `separate_drums()`
 is the file-in/files-out convenience wrapper the CLI and top-level
 `separate` alias call.
 
-Reads: .config, .model, .utils.download, .utils.cache
+Reads: .config, .model, .utils.download, .utils.cache, .utils.checkpoint,
+.backends (lazily, only when backend="mlx"/"auto" is requested)
 """
 
 from pathlib import Path
@@ -176,19 +177,9 @@ class MDX23CInference:
 
     def _load_weights(self, model_path: Path) -> None:
         """Load model weights from checkpoint file."""
-        if not model_path.exists():
-            raise FileNotFoundError(f"Model file not found: {model_path}")
+        from .utils.checkpoint import load_checkpoint_state
 
-        # Load state dict
-        state_dict = torch.load(model_path, map_location='cpu', weights_only=False)
-
-        # Handle different checkpoint formats
-        if isinstance(state_dict, dict):
-            if 'state_dict' in state_dict:
-                state_dict = state_dict['state_dict']
-            elif 'model_state_dict' in state_dict:
-                state_dict = state_dict['model_state_dict']
-
+        state_dict = load_checkpoint_state(model_path)
         self.model.load_state_dict(state_dict)
 
     @property
@@ -501,6 +492,7 @@ def separate_file(
     device: Optional[str] = None,
     cache_dir: Optional[Union[str, Path]] = None,
     progress: bool = True,
+    backend: Optional[str] = None,
 ) -> Dict[str, Path]:
     """
     Separate an audio file into the registered model's stem files.
@@ -520,6 +512,11 @@ def separate_file(
             ``~/.cache/mdxnet-infer/`` (override via the
             ``MDXNET_INFER_CACHE_DIR`` env var).
         progress: Show progress messages and bars.
+        backend: Compute backend: ``None``/``'torch'`` (default, unchanged
+            behaviour), ``'mlx'`` (Apple Silicon, needs the ``[mlx]`` extra),
+            or ``'auto'`` (prefers ``'mlx'`` when it can actually run here).
+            ``device`` keeps its Torch meaning and is ignored by the MLX
+            backend, which owns its own execution target.
 
     Returns:
         Dictionary mapping stem names to output file paths.
@@ -555,12 +552,26 @@ def separate_file(
     # Load model
     if progress:
         print(f"Loading model: {model_name}")
-    engine = MDX23CInference.from_pretrained(
-        model_name=model_name,
-        cache_dir=cache_dir,
-        device=device,
-        progress=progress,
-    )
+    from .backends import get_backend, resolve_backend_name
+
+    backend_name = resolve_backend_name(backend)
+    if backend_name == "torch":
+        engine = MDX23CInference.from_pretrained(
+            model_name=model_name,
+            cache_dir=cache_dir,
+            device=device,
+            progress=progress,
+        )
+    else:
+        from .config import MDX23CConfig
+
+        ckpt_path, yaml_path = MDX23CInference.download_model(
+            model_name, cache_dir=cache_dir, progress=progress
+        )
+        config = MDX23CConfig.from_yaml(yaml_path)
+        engine = get_backend(backend_name).from_checkpoint(
+            config=config, checkpoint_path=ckpt_path
+        )
 
     # Separate
     if progress:
@@ -594,6 +605,7 @@ def separate_drums(
     device: Optional[str] = None,
     cache_dir: Optional[Union[str, Path]] = None,
     progress: bool = True,
+    backend: Optional[str] = None,
 ) -> Dict[str, Path]:
     """DrumSep-only file convenience wrapper.
 
@@ -612,5 +624,6 @@ def separate_drums(
         combine_cymbals=combine_cymbals,
         device=device,
         cache_dir=cache_dir,
+        backend=backend,
         progress=progress,
     )

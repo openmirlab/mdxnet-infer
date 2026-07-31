@@ -54,7 +54,19 @@ def main() -> None:
         default=None,
         help=(
             "Inference device: 'cuda', 'cuda:N', 'cpu', 'mps', or 'auto' "
-            "(auto-detected if omitted or 'auto')"
+            "(auto-detected if omitted or 'auto'). --backend mlx owns its own "
+            "execution target and accepts only 'auto' or 'mps'; any other value "
+            "is refused rather than ignored."
+        ),
+    )
+    parser.add_argument(
+        "--backend",
+        default=None,
+        choices=["torch", "mlx", "auto"],
+        help=(
+            "Compute backend: 'torch' (default, unchanged), 'mlx' "
+            "(Apple Silicon, needs 'pip install mdxnet-infer[mlx]'), or "
+            "'auto' (prefers mlx when it can actually run here)"
         ),
     )
     parser.add_argument(
@@ -91,6 +103,7 @@ def main() -> None:
             combine_cymbals=args.combine_cymbals,
             device=args.device,
             cache_dir=args.cache_dir,
+            backend=args.backend,
             progress=not args.quiet,
         )
     except Exception as exc:

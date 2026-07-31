@@ -10,4 +10,5 @@ dist/
 *.ckpt
 *.onnx
 .DS_Store
+.refs/
 uv.lock.bak

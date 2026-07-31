@@ -1,8 +1,10 @@
 name: Test
 
 # Runs the unit test suite (no network, no model weights required) on every
-# push and pull request. All 40 tests use synthetic tensors / mocked HTTP
-# responses -- none depend on downloading the real DrumSep checkpoint.
+# push and pull request. Tests use synthetic tensors / mocked HTTP responses
+# -- none depend on downloading the real DrumSep checkpoint. MLX-specific
+# tests skip cleanly here (no [mlx] extra, no Apple Silicon); realweights-
+# marked tests are deselected by pyproject.toml's addopts regardless.
 
 on:
   push:
