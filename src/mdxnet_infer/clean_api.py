@@ -14,8 +14,8 @@ from_pretrained`/``MDX23CInference(...)`` exactly as it always has.  Both
 ``separate(audio, *, sample_rate=..., progress=...)`` shape, so :meth:`infer`
 does not need to know which one is resident.
 
-Reads: inference (MDX23CInference, separate_drums), backends (resolve_backend_name,
-get_backend), config (MDX23CConfig)
+Reads: .checkpoint_catalog (get_checkpoint_metadata), .utils.cache (get_cache_dir),
+.utils.download (download_file, sha256sum); (lazily: inference, backends, config)
 """
 
 from __future__ import annotations
@@ -345,8 +345,9 @@ class MDXNetSeparator:
                 raise ValueError("sample_rate is not accepted for path inputs")
             metadata = get_checkpoint_metadata(self.model_name)
             if metadata is not None and metadata["api_family"] == "generic":
-                if combine_cymbals:
-                    raise ValueError("combine_cymbals is only valid for drumsep-6stem")
+                # combine_cymbals validation for non-drumsep models is owned by
+                # inference.separate_file() (it raises the same ValueError) --
+                # not duplicated here.
                 from .inference import separate_file
 
                 return separate_file(

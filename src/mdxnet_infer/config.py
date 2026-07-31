@@ -1,7 +1,15 @@
 """
-Configuration dataclass for MDX23C models.
+Configuration dataclass tree for MDX23C models (audio/model/training/inference).
 
-Supports loading from YAML config files used by jarredou DrumSep models.
+Supports loading from YAML config files used by jarredou DrumSep models
+(``from_yaml``/``from_mapping``), plus two hard-coded presets
+(``drumsep_6stem``, ``drumsep_5stem``) that mirror the two known checkpoints'
+actual training configs. ``from_mapping`` silently drops unknown fields
+(training-only keys not in a given dataclass), matching the source YAML
+files' own leniency; it raises ``ValueError`` only if ``data`` itself is not
+a mapping.
+
+Reads: yaml (external only; no internal package imports)
 """
 
 from dataclasses import dataclass, field
@@ -13,6 +21,14 @@ import yaml
 @dataclass
 class AudioConfig:
     """Audio processing configuration."""
+    # NOTE: not authoritative -- runtime never reads this field. `inference.py`
+    # derives the actual chunk size at separation time from
+    # `hop_length * (inference.dim_t - 1)` (see `inference.py`'s
+    # `separate()`). For `drumsep_6stem` the two happen to agree
+    # (512 * 255 = 130560); for `drumsep_5stem` they do NOT
+    # (this field stores 523776, but runtime computes 512 * 511 = 261632).
+    # Retained for config-shape compatibility with the source YAML files,
+    # not deleted -- do not treat it as ground truth.
     chunk_size: int = 523776
     dim_f: int = 1024
     dim_t: int = 1024

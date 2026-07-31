@@ -36,17 +36,26 @@ import numpy as np
 
 @dataclass(frozen=True)
 class ChunkingPlan:
-    """How one mixture is cut into overlapping chunks -- one owner, both backends.
+    """How one mixture is cut into overlapping chunks.
 
-    Mirrors `MDX23CInference.separate()`'s own arithmetic exactly (`chunk_size
-    = hop_length * (dim_t - 1)`, `hop_size = chunk_size // overlap`): two
-    backends deriving this independently is the same design decision encoded
-    twice, and they would drift silently rather than loudly. Unlike the
-    sibling package's `ChunkingPlan`, `pad_size` is not part of this plan --
-    it depends on the mixture's own length (`hop_size - (length - chunk_size)
-    % hop_size`), not on config alone, so it is computed per-call in each
-    backend's `separate()`, exactly where `MDX23CInference.separate()`
-    computes it today.
+    Not actually a single owner for both backends today: `mlx_backend.py`
+    builds this from config and uses it. `torch_backend.py` never touches
+    it -- it wraps `MDX23CInference.separate()` unmodified (see that
+    module's docstring), and that method still computes the identical
+    arithmetic inline (`inference.py`'s `chunk_size = hop_length * (dim_t -
+    1)`, `hop_size = chunk_size // overlap`) rather than constructing a
+    `ChunkingPlan`. So the same design decision is currently encoded in two
+    places -- here and in `inference.py` -- not one; `tests/
+    test_chunking_plan.py` cross-checks that they still agree for the
+    registry's presets, so a future change to either side that breaks that
+    agreement fails loudly instead of drifting silently. Consolidating
+    `inference.py` onto this dataclass is deferred, not done.
+
+    Unlike the sibling package's `ChunkingPlan`, `pad_size` is not part of
+    this plan -- it depends on the mixture's own length (`hop_size - (length
+    - chunk_size) % hop_size`), not on config alone, so it is computed
+    per-call in each backend's `separate()`, exactly where
+    `MDX23CInference.separate()` computes it today.
     """
 
     chunk_size: int

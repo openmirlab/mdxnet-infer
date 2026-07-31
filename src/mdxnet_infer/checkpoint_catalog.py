@@ -3,7 +3,16 @@
 ``config/checkpoints.toml`` is the sole source of truth for stable model
 names, architecture recipes, stems, and remote artifacts.  The flattened
 checkpoint/config fields remain compatibility views for callers from the
-single-DrumSep registry era.
+single-DrumSep registry era. ``_parse`` validates the TOML eagerly at import
+time (module load fails loudly if the shipped config is malformed) and
+raises ``ValueError`` for any schema violation: unsupported schema version,
+missing/invalid models, duplicate names/aliases, bad stems or target
+instrument, unknown API family, an incomplete architecture recipe, or a
+missing/malformed checkpoint or config artifact (including a bad SHA-256).
+Looking up an unknown model name is not an error path: ``get_checkpoint_metadata``
+returns ``None`` rather than raising.
+
+Reads: no internal package imports (stdlib tomllib/pathlib/types only)
 """
 
 from __future__ import annotations

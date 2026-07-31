@@ -125,13 +125,19 @@ def test_importing_backends_package_does_not_pull_in_mlx():
     assert not leaked, f"import mdxnet_infer.backends pulled in: {leaked}"
 
 
-def test_chunking_plan_matches_inference_module_arithmetic():
+@pytest.mark.parametrize("preset", ["drumsep_6stem", "drumsep_5stem"])
+def test_chunking_plan_matches_inference_module_arithmetic(preset):
     """`ChunkingPlan` must not silently drift from `MDX23CInference.separate()`'s
-    own inline chunk-size/hop-size formula -- this test ties the two together so
-    a future edit to one is caught by the other."""
+    own inline chunk-size/hop-size formula (`inference.py` lines ~243-245) --
+    this test ties the two together, for every registry preset, so a future
+    edit to one is caught by the other. `backends/base.py`'s `ChunkingPlan`
+    docstring documents that this is currently two independent encodings of
+    the same arithmetic, not one shared owner -- `torch_backend.py` never
+    constructs a `ChunkingPlan`, it wraps `MDX23CInference.separate()`
+    unmodified."""
     from mdxnet_infer.config import MDX23CConfig
 
-    config = MDX23CConfig.drumsep_6stem()
+    config = getattr(MDX23CConfig, preset)()
     plan = ChunkingPlan.from_config(config)
 
     mdx_segment_size = config.inference.dim_t
