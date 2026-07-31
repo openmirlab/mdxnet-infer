@@ -45,10 +45,11 @@ class ChunkingPlan:
     arithmetic inline (`inference.py`'s `chunk_size = hop_length * (dim_t -
     1)`, `hop_size = chunk_size // overlap`) rather than constructing a
     `ChunkingPlan`. So the same design decision is currently encoded in two
-    places -- here and in `inference.py` -- not one; `tests/
-    test_chunking_plan.py` cross-checks that they still agree for the
-    registry's presets, so a future change to either side that breaks that
-    agreement fails loudly instead of drifting silently. Consolidating
+    places -- here and in `inference.py` -- not one;
+    `tests/test_backends.py::test_chunking_plan_matches_inference_module_arithmetic`
+    cross-checks that they still agree for the registry's presets, so a
+    future change to either side that breaks that agreement fails loudly
+    instead of drifting silently. Consolidating
     `inference.py` onto this dataclass is deferred, not done.
 
     Unlike the sibling package's `ChunkingPlan`, `pad_size` is not part of

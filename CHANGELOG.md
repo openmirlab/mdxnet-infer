@@ -10,10 +10,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   "mdxnet-infer[mlx]"`). New `backend` keyword (`None`/`"torch"` default,
   `"mlx"`, `"auto"`) on `separate_file()`, `separate_drums()`,
   `MDXNetSession`, `MDXNetSeparator`, `clean_api.separate()`, and the CLI's
-  `--backend` flag; `device` keeps its existing Torch meaning and is ignored
-  by the MLX backend, which owns its own execution target. The default
-  (`backend` unspecified) is byte-for-byte the existing Torch behaviour —
-  additive only.
+  `--backend` flag; `device` keeps its existing Torch meaning for the Torch
+  backend, but the MLX backend accepts only `None`/`"auto"`/`"mps"` for it and
+  refuses anything else rather than ignoring it. The default (`backend`
+  unspecified) is byte-for-byte the existing Torch behaviour — additive only.
   - `src/mdxnet_infer/backends/` — the compute seam (`SeparationBackend`
     protocol, `ChunkingPlan`, `TorchBackend` wrapping the existing
     `MDX23CInference.separate()` unmodified, `MLXBackend` reimplementing
@@ -100,6 +100,21 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - Corrected architecture attribution: the TFC-TDF v3 architecture traces to
   KUIELab's `sdx23` repository via ZFTurbo's Music-Source-Separation-Training,
   not to an unrelated "MDX23C-8KFFT-InstVoc_HQ" checkpoint.
+- **Audit remediation on the new backend seam:** `clean_api.py`'s `Reads:`
+  header line named three lazily-imported modules while omitting the actual
+  top-level imports (`.checkpoint_catalog`, `.utils.cache`,
+  `.utils.download`) -- rewritten from the real import block, eager first
+  and lazy parenthesized. `config.py` and `checkpoint_catalog.py` (both
+  load-bearing) gained the header convention they lacked; `config.py`'s
+  `chunk_size` field now warns that runtime never reads it and that
+  `drumsep_5stem`'s stored value disagrees with what runtime computes. The
+  `combine_cymbals` validation lived twice with the identical message --
+  `clean_api.py`'s copy is deleted, `inference.separate_file()` is now the
+  single owner. `ChunkingPlan`'s docstring no longer claims single ownership
+  it does not have (`inference.py` still computes the identical arithmetic
+  inline); a new offline cross-check test asserts the inline formula equals
+  `ChunkingPlan.from_config` for the registry presets, so drift is loud from
+  today.
 
 ### Removed
 - **`drumsep-5stem` removed from `KNOWN_MODELS`.** No surviving original

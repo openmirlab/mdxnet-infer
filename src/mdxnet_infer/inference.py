@@ -14,8 +14,9 @@ fresh download and re-verifies cached files before reuse. `separate_drums()`
 is the file-in/files-out convenience wrapper the CLI and top-level
 `separate` alias call.
 
-Reads: .config, .model, .utils.download, .utils.cache, .utils.checkpoint,
-.backends (lazily, only when backend="mlx"/"auto" is requested)
+Reads: .config, .model, .checkpoint_catalog, .utils.download, .utils.cache,
+.utils.checkpoint, .utils.stems (lazily, only for cymbal-combining stem
+output), .backends (lazily, only when backend="mlx"/"auto" is requested)
 """
 
 from pathlib import Path
