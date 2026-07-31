@@ -113,6 +113,12 @@ uv pip install -e ".[dev,mlx]"
 pytest -m realweights tests/test_mlx_parity.py -v
 ```
 
+Realweights tests need the real checkpoint already cached on disk (they
+never download) and an arm64 interpreter: `test_mlx_parity.py` skips
+silently under x86_64 (including Rosetta), so a green run on the wrong arch
+confirms nothing about the MLX path -- check `python -c "import platform;
+print(platform.machine())"` says `arm64` first.
+
 ## File-top header convention
 
 Load-bearing files (roughly >150 lines) carry a file-top header: title line,
