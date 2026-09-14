@@ -107,8 +107,16 @@ def test_auto_falls_back_to_cpu_without_accelerators(monkeypatch):
     import mdxnet_infer.inference as inference
 
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
-    monkeypatch.setattr(torch.backends.mps, "is_available", lambda: False)
     assert inference._resolve_device("auto") == torch.device("cpu")
+
+
+def test_explicit_mps_device_raises_value_error():
+    """MLX/MPS support was removed; 'mps' must raise, never be silently
+    accepted or downgraded (org canon: MLX/MPS is out of scope)."""
+    import mdxnet_infer.inference as inference
+
+    with pytest.raises(ValueError, match="mps"):
+        inference._resolve_device("mps")
 
 
 def test_known_models_download_metadata_is_derived_from_toml_catalog():

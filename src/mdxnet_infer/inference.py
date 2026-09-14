@@ -52,32 +52,32 @@ def _known_models() -> dict:
 def _resolve_device(device: Optional[str]) -> torch.device:
     """Resolve and validate a public inference-device request.
 
-    ``None`` and ``"auto"`` retain the legacy preference order (CUDA, MPS,
-    CPU). Explicit requests must name an available ``cpu``, ``cuda``,
-    ``cuda:N``, or ``mps`` device; no explicit request is silently downgraded.
+    ``None`` and ``"auto"`` retain the legacy preference order (CUDA, then
+    CPU). Explicit requests must name an available ``cpu``, ``cuda``, or
+    ``cuda:N`` device; no explicit request is silently downgraded.
+    ``"mps"`` is not a supported device -- MLX/MPS support was removed (org
+    canon: MLX/MPS is out of scope) -- and raises ``ValueError`` rather than
+    being silently accepted or ignored.
     """
     if device is None or device == "auto":
         if torch.cuda.is_available():
             return torch.device("cuda")
-        mps = getattr(torch.backends, "mps", None)
-        if mps is not None and mps.is_available():
-            return torch.device("mps")
         return torch.device("cpu")
     if device == "cpu":
         return torch.device("cpu")
     if not isinstance(device, str):
-        raise ValueError("device must be None, 'auto', 'cpu', 'cuda', 'cuda:N', or 'mps'")
+        raise ValueError("device must be None, 'auto', 'cpu', 'cuda', or 'cuda:N'")
     if device == "mps":
-        mps = getattr(torch.backends, "mps", None)
-        if mps is None or not mps.is_available():
-            raise RuntimeError("MPS was explicitly requested but is not available")
-        return torch.device("mps")
+        raise ValueError(
+            "device='mps' is not supported; MLX/MPS support was removed "
+            "from this package"
+        )
     if device == "cuda":
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA was explicitly requested but is not available")
         return torch.device("cuda")
     if not device.startswith("cuda:"):
-        raise ValueError("device must be None, 'auto', 'cpu', 'cuda', 'cuda:N', or 'mps'")
+        raise ValueError("device must be None, 'auto', 'cpu', 'cuda', or 'cuda:N'")
     index_text = device[5:]
     if not index_text.isdigit():
         raise ValueError("CUDA device index must be a non-negative integer")
@@ -129,9 +129,8 @@ class MDX23CInference:
             config: MDX23CConfig object. If not provided, loaded from
                 ``config_path`` or inferred from ``model_name``.
             config_path: Path to YAML config file.
-            device: Inference device (``'cpu'``, ``'cuda'``, ``'cuda:N'``,
-                or ``'mps'``). Auto-detects if ``None`` or the literal string
-                ``'auto'``.
+            device: Inference device (``'cpu'``, ``'cuda'``, or ``'cuda:N'``).
+                Auto-detects if ``None`` or the literal string ``'auto'``.
             model_name: Known model name (currently only ``'drumsep-6stem'``;
                 see class docstring). Used to select built-in config when
                 ``config`` and ``config_path`` are both ``None``. Raises
@@ -507,7 +506,7 @@ def separate_file(
         combine_cymbals: DrumSep-only compatibility option. Generic models
             reject it rather than inheriting drum semantics.
         device: Inference device. ``None``/``'auto'`` auto-detect; explicit
-            values must be ``'cpu'``, ``'cuda'``, ``'cuda:N'``, or ``'mps'``.
+            values must be ``'cpu'``, ``'cuda'``, or ``'cuda:N'``.
         cache_dir: Directory for cached model weights. Defaults to
             ``~/.cache/mdxnet-infer/`` (override via the
             ``MDXNET_INFER_CACHE_DIR`` env var).

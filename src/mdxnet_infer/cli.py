@@ -53,8 +53,8 @@ def main() -> None:
         "--device",
         default=None,
         help=(
-            "Inference device: 'cuda', 'cuda:N', 'cpu', 'mps', or 'auto' "
-            "(auto-detected if omitted or 'auto')."
+            "Inference device: 'cuda', 'cuda:N', 'cpu', or 'auto' "
+            "(auto-detected if omitted or 'auto'). 'mps' is not supported."
         ),
     )
     parser.add_argument(

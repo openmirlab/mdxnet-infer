@@ -283,7 +283,7 @@ class TestMDX23CInference:
         engine = MDX23CInference(config=MDX23CConfig.drumsep_6stem(), device="auto")
         assert isinstance(engine.device, torch.device)
         # 'auto' must resolve to exactly what device=None auto-detects on
-        # this box (cuda/mps/cpu, whichever the machine actually has).
+        # this box (cuda/cpu, whichever the machine actually has).
         auto_engine = MDX23CInference(config=MDX23CConfig.drumsep_6stem(), device=None)
         assert engine.device == auto_engine.device
 
