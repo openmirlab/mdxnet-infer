@@ -12,3 +12,6 @@ dist/
 .DS_Store
 .refs/
 uv.lock.bak
+
+# docs/ is kept local-only by policy (not tracked on GitHub) -- see CLAUDE.md
+docs/

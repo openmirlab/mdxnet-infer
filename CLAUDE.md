@@ -1,5 +1,8 @@
 # mdxnet-infer
 
+**`docs/`** is local-only by policy (2026-09-14): kept on disk, gitignored,
+never pushed to GitHub.
+
 Inference-only MDX23C TFC-TDF source separation. Ships a package-owned
 registry of DrumSep and generic community recipes; no training code and no
 bundled weights. `drumsep-5stem` remains a local-weights-only architecture.
