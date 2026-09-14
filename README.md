@@ -46,97 +46,6 @@ mdxnet-infer is built on the MDX23C TFC-TDF architecture and the DrumSep model w
 - Explicit `MDXNetSession` lifecycle with package-owned checkpoint metadata
 - Time-Frequency Convolution with Time-Distributed Fully-connected (TFC-TDF) blocks
 - 44.1 kHz stereo output
-- Optional native MLX backend for Apple Silicon (`pip install mdxnet-infer[mlx]`)
-
-## Backends and devices
-
-`backend` selects which framework computes (`"torch"` default, `"mlx"`, or
-`"auto"`); `device` keeps its existing Torch meaning (`None`/`"auto"`, `"cpu"`,
-`"cuda"`, `"cuda:N"`, `"mps"`). `backend="mlx"` owns its own Apple Silicon
-execution and accepts only `device` of `None`/`"auto"`/`"mps"`, refusing
-anything else rather than ignoring it. `backend` defaults to `"torch"`, so a
-caller who never mentions it gets exactly today's behaviour, unchanged.
-
-```python
-from mdxnet_infer import separate_file
-
-# Torch (default) -- unchanged
-output_paths = separate_file("drums.wav", model_name="drumsep-6stem")
-
-# Native MLX on Apple Silicon (needs: pip install mdxnet-infer[mlx])
-output_paths = separate_file("drums.wav", model_name="drumsep-6stem", backend="mlx")
-
-# Prefer MLX where it can actually run, else fall back to Torch
-output_paths = separate_file("drums.wav", model_name="drumsep-6stem", backend="auto")
-```
-
-```bash
-mdxnet-infer drums.wav -o output/ --model drumsep-6stem --backend mlx
-```
-
-### The MLX backend
-
-Install it with the extra, which is never part of the core install:
-
-```bash
-pip install "mdxnet-infer[mlx]"
-```
-
-`src/mdxnet_infer/mlx/model.py` vendors `TfcTdfV3MLX`, a native-MLX port of
-the same TFC-TDF v3 architecture `model.py`'s `TFC_TDF_net` implements,
-from [`ssmall256/mlx-audio-separator`](https://github.com/ssmall256/mlx-audio-separator)
-(MIT License; source revision recorded in the file header). It is vendored,
-not depended on: the upstream package bundles a full model catalog, a CLI,
-several other architectures, and a compiled `mlx-audio-io` extension pinned
-to an exact `mlx` version, none of which this package needs for one model
-class. Every registry checkpoint shares this one architecture (unlike some
-sibling OpenMIRLab packages with per-checkpoint model variants), so the MLX
-backend supports every model the Torch path does.
-
-`backends/mlx_backend.py::MLXBackend.separate()` mirrors
-`MDX23CInference.separate()`'s exact chunking arithmetic -- constant
-zero-padding sized from the mixture's own length, batched forward passes,
-additive accumulation, divide by `overlap` -- so a track processed by either
-backend goes through the same math, just on a different chip.
-
-Weight loading uses `load_converted_weights()`, which raises rather than
-silently leaving any model parameter at random initialization or dropping
-any converted checkpoint tensor -- the naive `model.load_weights(...,
-strict=False)` path this replaces would otherwise "succeed" on a mismatched
-conversion and produce confident garbage.
-
-**Measured Torch-vs-MLX parity** on the real `drumsep-6stem` checkpoint,
-through the public `.separate()` API on real audio files (2026-07-30, Apple
-M-series, torch 2.13.0, mlx 0.31.2), worst-case max-abs divergence:
-
-| Tail | Divergence |
-|---|---|
-| clean signal | 1.371e-06 |
-| zero-padded tail | 1.445e-06 |
-| near-silent tail | 1.028e-06 |
-
-The silent-tail cases matter because every track's final chunk is
-zero-padded by the chunking arithmetic above; a parity check that only
-covered clean signal would not exercise that path. `mlx/model.py` also
-carries `exact_zero_safe_rfft()`, a guard against an MLX 0.31.2 Metal rfft
-kernel artifact that causes serious divergence in the sibling
-`bs-roformer-infer` package's attention-based architecture -- kept here for
-consistency, but **measured inert** for this package's convolutional,
-non-attention architecture: removing it and re-running the same three cases
-moved every one by less than 1e-6, still inside the same noise floor (see
-`mlx/model.py`'s module docstring for the full measurement and the
-mechanism this architecture lacks).
-
-MPS and MLX both need an **arm64 Python interpreter**. Under Rosetta/x86_64
-they report as unavailable rather than failing loudly -- an x86_64
-interpreter makes `torch.backends.mps.is_available()` return `False`, and
-MLX ships no macOS x86_64 wheel at all, so it cannot even be installed
-there. Either way, an accelerated path just looks absent rather than
-misconfigured. This is easy to hit without noticing: an x86_64 `uv`
-resolves x86_64 interpreters, so `uv sync` can silently produce an
-environment where the accelerated paths structurally cannot exist. Check
-with `python -c "import platform; print(platform.machine())"` -- it must
-print `arm64`.
 
 ## Scope
 
@@ -165,9 +74,6 @@ uv add mdxnet-infer
 
 ```bash
 pip install mdxnet-infer
-
-# Optional: native MLX backend (Apple Silicon only)
-pip install "mdxnet-infer[mlx]"
 ```
 
 ## Quick Start
@@ -259,9 +165,10 @@ with MDXNetSession(model_name="drumsep-6stem", device="cpu") as session:
 The session is package-owned and has no dependency on a central runtime or
 catalog service; external applications can wrap it with their own policies.
 `release()` permits a later `load()`; `close()` is terminal. Device requests
-accept legacy `None`/`auto` selection (CUDA, then MPS, then CPU), or explicit
-`cpu`, `cuda`, `cuda:N`, and `mps`; malformed or unavailable explicit choices
-raise before model construction.
+accept legacy `None`/`auto` selection (CUDA, then CPU), or explicit `cpu`,
+`cuda`, and `cuda:N`; malformed, unavailable, or unsupported explicit
+choices (including `mps`, which this package does not support) raise before
+model construction.
 
 ## Supported Models
 
@@ -353,7 +260,7 @@ uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
 
 # Run the test suite (offline: synthetic tensors / mocked HTTP, no real
-# checkpoint needed; MLX-specific tests skip cleanly without the [mlx] extra)
+# checkpoint needed)
 pytest tests/ -v
 
 # Lint
@@ -365,13 +272,9 @@ python -m build
 
 CI (`.github/workflows/test.yml`) runs the same test suite on Python 3.10 and 3.12 on every push/PR; `publish.yml` gates PyPI publishing on that suite passing.
 
-Two test markers are deselected by default (`addopts = "-m 'not realweights'"`
-in `pyproject.toml`):
-
-- `tests/test_mlx_parity.py` -- real-checkpoint Torch-vs-MLX numeric parity,
-  including the three silence fixtures above. Needs an Apple Silicon Mac, the
-  `[mlx]` extra, and `drumsep-6stem` already cached. Run explicitly:
-  `pytest -m realweights tests/test_mlx_parity.py -v` (~2-4 min).
+`pyproject.toml`'s `addopts = "-m 'not realweights'"` deselects any test
+marked `realweights` (needs a real checkpoint already on disk and specific
+hardware) by default; there are currently none in this suite.
 
 ## License
 

@@ -38,45 +38,11 @@ bundled weights. `drumsep-5stem` remains a local-weights-only architecture.
   `cache.py` (cache dir resolution, env-overridable), `stems.py` (post-hoc
   stem combination: ride+crash -> cymbals, etc.), `checkpoint.py`
   (`load_checkpoint_state()` — the one place a `.ckpt`'s
-  `state_dict`/`model_state_dict` wrapper gets unwrapped; both the Torch
-  path and the MLX weight converter call it, so that convention lives in
-  exactly one module).
-- `src/mdxnet_infer/backends/` — the compute seam. `base.py` holds the
-  `SeparationBackend` protocol (one mixture in, named stems out, via a
-  signature that mirrors `MDX23CInference.separate()`'s own — see its
-  module docstring for why this deliberately isn't the narrower
-  `(channels, samples)` seam a sibling OpenMIRLab package uses) and
-  `ChunkingPlan`; `torch_backend.py` wraps the existing
-  `MDX23CInference.separate()` without reforking it; `mlx_backend.py` is the
-  new MLX implementation, reimplementing (not reusing) that same chunking
-  arithmetic in MLX. `__init__.py` resolves a backend by name. Every registry
-  checkpoint shares one architecture, so unlike a sibling package's backend
-  seam there is no per-checkpoint "variation" concept here to support or
-  refuse. Backend modules import lazily, so `import mdxnet_infer` never
-  pulls in `mlx` — `tests/test_backends.py` asserts that (via a subprocess,
-  since an *earlier* test in the same process legitimately importing real
-  mlx as a side effect of a real `is_available()` check is not the same
-  thing as `import mdxnet_infer` doing it).
-- `src/mdxnet_infer/mlx/` — the vendored MLX TFC_TDF_v3 (MIT, from
-  `ssmall256/mlx-audio-separator`, source revision recorded in the file
-  header), imported only by `backends/mlx_backend.py`. `convert.py`'s
-  `load_converted_weights()` raises rather than loading partially: the
-  naive `model.load_weights(strict=False)` path it replaces silently drops
-  unmatched keys, which leaves layers at random initialisation and produces
-  confident garbage. `model.py` carries one deliberate deviation from
-  upstream, `exact_zero_safe_rfft()` — read its docstring before touching
-  it. Unlike the sibling package this pattern comes from, it is **measured
-  inert** here (no operation in this architecture discards-and-renormalizes
-  a frame's own magnitude, and there is no attention to spread a corrupted
-  frame across time positions) — kept for consistency and cheap insurance,
-  not because removing it changes measured parity.
+  `state_dict`/`model_state_dict` wrapper gets unwrapped; used by
+  `MDX23CInference._load_weights`).
 - `tests/` — import smoke tests + model/config/inference unit tests, all
   offline (no network, no real checkpoint needed — instantiates
   `TFC_TDF_net` with random weights and forward-passes synthetic tensors).
-  `test_backends.py` and `test_mlx_model.py` add the same offline guarantee
-  for the backend seam and the vendored MLX model (the latter skips cleanly
-  without the `[mlx]` extra). `test_mlx_parity.py` is real-checkpoint,
-  `realweights`-marked, deselected by default.
 
 ## Accuracy rule
 
@@ -85,23 +51,7 @@ bundled weights. `drumsep-5stem` remains a local-weights-only architecture.
 Any change to `model.py`'s math requires a before/after golden-fixture
 comparison (record fixture on current code first, then prove bit-identical
 after). No such fixture exists yet in this repo — none of the changes to
-date have touched model.py's numerics. The same discipline applies to
-`mlx/model.py`'s port of it: `tests/test_mlx_parity.py` is the golden
-fixture, real-checkpoint and `realweights`-marked.
-
-## MLX backend (Apple Silicon)
-
-Optional, additive `backend="torch"` (default, unchanged) / `"mlx"` /
-`"auto"` axis; `device` keeps its Torch meaning; the MLX backend accepts only `None`/`auto`/`mps` for it and raises for anything else rather than ignoring it. See
-README's "Backends and devices" section for the public contract and
-`src/mdxnet_infer/backends/` above for the seam. Measured Torch-vs-MLX
-parity on the real `drumsep-6stem` checkpoint, through the public
-`.separate()` API, worst-case max-abs divergence (2026-07-30, Apple
-M-series, torch 2.13.0, mlx 0.31.2): clean signal 1.371e-06, zero-padded
-tail 1.445e-06, near-silent tail 1.028e-06 — all in the same ~1e-6 noise
-floor, with and without `exact_zero_safe_rfft()` (see above). `MLX_ENABLE_AMP`
-is not read anywhere in this port (there is no mixed-precision path to
-disable, unlike the sibling package this pattern is adapted from).
+date have touched model.py's numerics.
 
 ## Verification commands
 
@@ -110,17 +60,7 @@ uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
 pytest tests/ -v
 python -m build   # packaging check
-
-# MLX backend, on an Apple Silicon Mac with the [mlx] extra installed:
-uv pip install -e ".[dev,mlx]"
-pytest -m realweights tests/test_mlx_parity.py -v
 ```
-
-Realweights tests need the real checkpoint already cached on disk (they
-never download) and an arm64 interpreter: `test_mlx_parity.py` skips
-silently under x86_64 (including Rosetta), so a green run on the wrong arch
-confirms nothing about the MLX path -- check `python -c "import platform;
-print(platform.machine())"` says `arm64` first.
 
 ## File-top header convention
 

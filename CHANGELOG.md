@@ -6,46 +6,6 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
-- **Optional native MLX backend for Apple Silicon** (`pip install
-  "mdxnet-infer[mlx]"`). New `backend` keyword (`None`/`"torch"` default,
-  `"mlx"`, `"auto"`) on `separate_file()`, `separate_drums()`,
-  `MDXNetSession`, `MDXNetSeparator`, `clean_api.separate()`, and the CLI's
-  `--backend` flag; `device` keeps its existing Torch meaning for the Torch
-  backend, but the MLX backend accepts only `None`/`"auto"`/`"mps"` for it and
-  refuses anything else rather than ignoring it. The default (`backend`
-  unspecified) is byte-for-byte the existing Torch behaviour — additive only.
-  - `src/mdxnet_infer/backends/` — the compute seam (`SeparationBackend`
-    protocol, `ChunkingPlan`, `TorchBackend` wrapping the existing
-    `MDX23CInference.separate()` unmodified, `MLXBackend` reimplementing
-    that same chunking arithmetic — constant zero-padding, batched forward
-    passes, additive accumulation, divide by `overlap`, no fade window — in
-    MLX). `import mdxnet_infer` stays MLX-free; backend modules import
-    lazily.
-  - `src/mdxnet_infer/mlx/model.py` — vendors `TfcTdfV3MLX` from
-    [`ssmall256/mlx-audio-separator`](https://github.com/ssmall256/mlx-audio-separator)
-    (MIT, revision `0ddc8cf5507906b52ac45a9cd9e6d26e881a93f8`), a native-MLX
-    port of `model.py`'s `TFC_TDF_net`. Every registry checkpoint shares one
-    architecture, so the MLX backend supports every model the Torch path
-    does — no per-checkpoint variant system needed.
-  - `src/mdxnet_infer/mlx/convert.py` — weight conversion plus
-    `load_converted_weights()`, which raises on any unmatched model
-    parameter or dropped converted tensor instead of the naive
-    `load_weights(strict=False)` silently leaving a layer at random
-    initialization.
-  - `mlx/model.py` carries `exact_zero_safe_rfft()`, a guard against an MLX
-    0.31.2 Metal rfft kernel artifact on all-zero frames — copied from the
-    sibling `bs-roformer-infer` package's own mitigation, kept for
-    consistency, but **measured inert** here: this architecture's norms
-    (BatchNorm/InstanceNorm/GroupNorm) don't discard-and-renormalize a
-    frame's own magnitude the way the sibling's attention-based
-    architecture does, and there is no attention to spread a corrupted
-    frame across time positions. Measured Torch-vs-MLX max-abs divergence
-    on the real `drumsep-6stem` checkpoint (clean/zero-padded/near-silent
-    tails): 1.371e-06 / 1.445e-06 / 1.028e-06 with the guard, 1.654e-06 /
-    1.952e-06 / 1.490e-06 with it removed — all in the same noise floor
-    (contrast the sibling package's 4.0e-07 clean vs. 1.455e-02 zero-padded
-    without its guard).
-  - `.refs/mlx-audio-separator/` — the vendoring source clone, gitignored.
 - Expanded the package-owned MDX23C registry from DrumSep alone to seven
   SHA-verified recipes: InstVoc HQ1/HQ2, D1581, ZFTurbo 4-stem, aufr33/jarredou
   dereverb, and Jasper SFX alongside DrumSep. The TOML registry is now the
@@ -63,9 +23,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   target-instrument output contract.
 
 ### Changed
-- Validate explicit inference devices early (`cpu`, `cuda`, `cuda:N`, and
-  `mps`) while preserving legacy `None`/`auto` accelerator selection and CUDA
-  index forwarding.
+- Validate explicit inference devices early (`cpu`, `cuda`, and `cuda:N`)
+  while preserving legacy `None`/`auto` accelerator selection and CUDA
+  index forwarding. `mps` is not a supported device and raises `ValueError`.
 - `MDXNetSession.release()` now permits reload; idempotent `close()` is
   terminal. The legacy `KNOWN_MODELS` download compatibility view now derives
   URL and hash metadata from packaged `config/checkpoints.toml`.
@@ -100,23 +60,22 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - Corrected architecture attribution: the TFC-TDF v3 architecture traces to
   KUIELab's `sdx23` repository via ZFTurbo's Music-Source-Separation-Training,
   not to an unrelated "MDX23C-8KFFT-InstVoc_HQ" checkpoint.
-- **Audit remediation on the new backend seam:** `clean_api.py`'s `Reads:`
-  header line named three lazily-imported modules while omitting the actual
-  top-level imports (`.checkpoint_catalog`, `.utils.cache`,
-  `.utils.download`) -- rewritten from the real import block, eager first
-  and lazy parenthesized. `config.py` and `checkpoint_catalog.py` (both
-  load-bearing) gained the header convention they lacked; `config.py`'s
-  `chunk_size` field now warns that runtime never reads it and that
-  `drumsep_5stem`'s stored value disagrees with what runtime computes. The
-  `combine_cymbals` validation lived twice with the identical message --
-  `clean_api.py`'s copy is deleted, `inference.separate_file()` is now the
-  single owner. `ChunkingPlan`'s docstring no longer claims single ownership
-  it does not have (`inference.py` still computes the identical arithmetic
-  inline); a new offline cross-check test asserts the inline formula equals
-  `ChunkingPlan.from_config` for the registry presets, so drift is loud from
-  today.
+- **Audit remediation:** `clean_api.py`'s `Reads:` header line named three
+  lazily-imported modules while omitting the actual top-level imports
+  (`.checkpoint_catalog`, `.utils.cache`, `.utils.download`) -- rewritten
+  from the real import block, eager first and lazy parenthesized. `config.py`
+  and `checkpoint_catalog.py` (both load-bearing) gained the header
+  convention they lacked; `config.py`'s `chunk_size` field now warns that
+  runtime never reads it and that `drumsep_5stem`'s stored value disagrees
+  with what runtime computes. The `combine_cymbals` validation lived twice
+  with the identical message -- `clean_api.py`'s copy is deleted,
+  `inference.separate_file()` is the single owner.
 
 ### Removed
+- **MLX backend and Torch MPS device support removed before release**
+  (never shipped in a published version): the `backend=` parameter, the
+  MLX backend and its vendored model, the `[mlx]` extra, and `device="mps"`
+  are all gone; `device="mps"` now raises `ValueError`.
 - **`drumsep-5stem` removed from `KNOWN_MODELS`.** No surviving original
   checkpoint could be found anywhere on the web (the only remaining copy
   is a non-drop-in OpenVINO conversion); CLI `--model` no longer offers
