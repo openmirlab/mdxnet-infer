@@ -4,18 +4,8 @@ This is an additive front door over :mod:`mdxnet_infer.inference`.  The
 existing engine remains the owner of model loading and separation; this module
 only defines the input boundary and helper lifecycle.
 
-``backend`` (``None``/``"torch"`` default, ``"mlx"``, or ``"auto"``) selects
-which compute backend loads and runs the model; see :mod:`mdxnet_infer.backends`
-for the seam.  When unspecified, behaviour is byte-for-byte what it was before
-the backend axis existed: ``load()`` still calls :meth:`MDX23CInference.
-from_pretrained`/``MDX23CInference(...)`` exactly as it always has.  Both
-:class:`~mdxnet_infer.inference.MDX23CInference` (Torch) and
-:class:`~mdxnet_infer.backends.mlx_backend.MLXBackend` expose the same
-``separate(audio, *, sample_rate=..., progress=...)`` shape, so :meth:`infer`
-does not need to know which one is resident.
-
 Reads: .checkpoint_catalog (get_checkpoint_metadata), .utils.cache (get_cache_dir),
-.utils.download (download_file, sha256sum); (lazily: inference, backends, config)
+.utils.download (download_file, sha256sum); (lazily: .inference)
 """
 
 from __future__ import annotations
@@ -42,7 +32,6 @@ class MDXNetSession:
                  checkpoint_path=None, checkpoint_url=None,
                  checkpoint_metadata: Optional[dict] = None,
                  config_path=None, config=None, cache_dir=None, device=None,
-                 backend: Optional[str] = None,
                  progress: bool = True, **engine_options):
         self.model_name = model_name
         self._model = model
@@ -52,7 +41,6 @@ class MDXNetSession:
         self.config = config
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self.device = device
-        self.backend = backend
         self.progress = progress
         self._engine_options = dict(engine_options)
         self._metadata = dict(checkpoint_metadata or
@@ -104,40 +92,6 @@ class MDXNetSession:
             raise ValueError(f"checkpoint SHA-256 mismatch for {path}")
         return path
 
-    def _load_mlx_backend(self, backend_name: str):
-        """Build an MLX (or future non-Torch) backend from this session's
-        checkpoint/config sources, reusing the same sha256-verified
-        materialization :meth:`load` already uses for Torch -- there is only
-        ever one place a checkpoint or config is resolved and verified.
-        """
-        from .backends import get_backend
-        from .config import MDX23CConfig
-
-        ckpt_url = self.checkpoint_url or self._metadata.get("checkpoint_url")
-        ckpt = self._materialize(self.checkpoint_path, ckpt_url, "checkpoint_sha256")
-        config_url = self._metadata.get("config_url")
-        yaml_path = self._materialize(self.config_path, config_url, "config_sha256")
-
-        if ckpt is None:
-            raise ValueError(
-                f"backend={backend_name!r} needs a checkpoint: provide "
-                f"checkpoint_path, or use a model_name with a package registry "
-                f"entry (got {self.model_name!r})"
-            )
-        if self.config is not None:
-            config = self.config
-        elif yaml_path is not None:
-            config = MDX23CConfig.from_yaml(yaml_path)
-        else:
-            raise ValueError(
-                f"backend={backend_name!r} needs a config: provide config, "
-                f"config_path, or use a model_name with a package registry "
-                f"entry (got {self.model_name!r})"
-            )
-
-        backend_cls = get_backend(backend_name)
-        return backend_cls.from_checkpoint(config=config, checkpoint_path=ckpt)
-
     def load(self) -> "MDXNetSession":
         if self._status == "closed":
             raise RuntimeError("cannot load a closed MDXNetSession")
@@ -145,14 +99,6 @@ class MDXNetSession:
             return self
         self._status = "loading"
         try:
-            from .backends import resolve_backend_name
-
-            backend_name = resolve_backend_name(self.backend)
-            if backend_name != "torch":
-                self._model = self._load_mlx_backend(backend_name)
-                self._status = "ready"
-                return self
-
             from .inference import MDX23CInference
             # The package-local TOML snapshot is the default source for
             # checkpoint/config URLs.  Keep the legacy downloader as a
@@ -196,20 +142,9 @@ class MDXNetSession:
         if self._status == "closed":
             return
         if self._model is not None:
-            # Non-Torch backends (e.g. MLXBackend) own a release() of their
-            # own; MDX23CInference (and test doubles shaped like it) does
-            # not, so it keeps the original cpu()+empty_cache path below
-            # unchanged. hasattr, not isinstance: callers have always been
-            # able to hand MDXNetSession a duck-typed engine via the
-            # ``model=`` constructor argument, and that contract must not
-            # start requiring a real MDX23CInference.
-            release = getattr(self._model, "release", None)
-            if callable(release):
-                release()
-            else:
-                model = getattr(self._model, "model", None)
-                if model is not None and hasattr(model, "cpu"):
-                    model.cpu()
+            model = getattr(self._model, "model", None)
+            if model is not None and hasattr(model, "cpu"):
+                model.cpu()
             self._model = None
         try:
             import torch
@@ -283,13 +218,12 @@ class MDXNetSeparator:
     """
 
     def __init__(self, engine=None, *, model_name: str = "drumsep-6stem",
-                 cache_dir=None, device=None, backend: Optional[str] = None,
-                 progress: bool = True, **engine_options):
+                 cache_dir=None, device=None, progress: bool = True,
+                 **engine_options):
         self._engine = engine
         self.model_name = model_name
         self.cache_dir = cache_dir
         self.device = device
-        self.backend = backend
         self.progress = progress
         self._engine_options = dict(engine_options)
 
@@ -297,13 +231,6 @@ class MDXNetSeparator:
     def engine(self):
         """Return the lazily initialized compatible inference engine."""
         if self._engine is None:
-            from .backends import resolve_backend_name
-
-            backend_name = resolve_backend_name(self.backend)
-            if backend_name != "torch":
-                self._engine = self._build_backend_engine(backend_name)
-                return self._engine
-
             from .inference import MDX23CInference
 
             if self._engine_options:
@@ -316,21 +243,6 @@ class MDXNetSeparator:
                     progress=self.progress,
                 )
         return self._engine
-
-    def _build_backend_engine(self, backend_name: str):
-        """Build a non-Torch backend (e.g. MLX) from the same registry
-        checkpoint/config the Torch path downloads -- there is only ever one
-        checkpoint per registry model, converted in memory per backend."""
-        from .backends import get_backend
-        from .config import MDX23CConfig
-        from .inference import MDX23CInference
-
-        ckpt_path, yaml_path = MDX23CInference.download_model(
-            self.model_name, cache_dir=self.cache_dir, progress=self.progress
-        )
-        config = MDX23CConfig.from_yaml(yaml_path)
-        backend_cls = get_backend(backend_name)
-        return backend_cls.from_checkpoint(config=config, checkpoint_path=ckpt_path)
 
     def __call__(self, source, *, sample_rate: Optional[int] = None,
                  output_dir=None, combine_cymbals: bool = False):
@@ -356,7 +268,6 @@ class MDXNetSeparator:
                     model_name=self.model_name,
                     device=self.device,
                     cache_dir=self.cache_dir,
-                    backend=self.backend,
                     progress=self.progress,
                 )
             from .inference import separate_drums
@@ -368,7 +279,6 @@ class MDXNetSeparator:
                 combine_cymbals=combine_cymbals,
                 device=self.device,
                 cache_dir=self.cache_dir,
-                backend=self.backend,
                 progress=self.progress,
             )
         if sample_rate is None:
@@ -403,11 +313,11 @@ class MDXNetSeparator:
 def separate(source, *, model_name: str = "drumsep-6stem",
              sample_rate: Optional[int] = None, output_dir=None,
              combine_cymbals: bool = False, device=None, cache_dir=None,
-             backend: Optional[str] = None, progress: bool = True):
+             progress: bool = True):
     """One-shot clean separation; a fresh engine is used for each call."""
     return MDXNetSeparator(
         model_name=model_name, device=device, cache_dir=cache_dir,
-        backend=backend, progress=progress,
+        progress=progress,
     ).separate(source, sample_rate=sample_rate, output_dir=output_dir,
                combine_cymbals=combine_cymbals)
 

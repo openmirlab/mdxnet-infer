@@ -80,7 +80,7 @@ def test_generic_model_path_uses_generic_workflow_not_drumsep(monkeypatch, tmp_p
     assert result == {"Vocals": Path("vocals.wav")}
     assert calls == [
         ((path,), {"output_dir": None, "model_name": "d1581", "device": None,
-                   "cache_dir": None, "backend": None, "progress": False})
+                   "cache_dir": None, "progress": False})
     ]
 
 

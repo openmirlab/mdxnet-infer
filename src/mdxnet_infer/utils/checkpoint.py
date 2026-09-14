@@ -1,12 +1,12 @@
-"""Shared `.ckpt` state-dict unwrapping -- one owner for a format both
-backends read.
+"""`.ckpt` state-dict unwrapping -- one small, named place for this format's
+quirk to live.
 
-Both `MDX23CInference._load_weights` (Torch) and `mdxnet_infer.backends.
-mlx_backend` (MLX weight conversion) need the same raw bytes: a PyTorch
-checkpoint file that may be a bare state dict or one wrapped under a
-``state_dict``/``model_state_dict`` key. Keeping that unwrap logic in two
-places would be the same design decision encoded twice; this is the one
-place it lives.
+`MDX23CInference._load_weights` needs the same raw bytes every time: a
+PyTorch checkpoint file that may be a bare state dict or one wrapped under a
+``state_dict``/``model_state_dict`` key. This used to be shared with an MLX
+weight converter (removed along with MLX/MPS support); it stays its own
+function rather than moving back inline, since "unwrap a checkpoint" is a
+distinct, independently testable step from "load it into a model."
 
 Reads: torch (leaf utility)
 """

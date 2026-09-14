@@ -16,7 +16,7 @@ is the file-in/files-out convenience wrapper the CLI and top-level
 
 Reads: .config, .model, .checkpoint_catalog, .utils.download, .utils.cache,
 .utils.checkpoint, .utils.stems (lazily, only for cymbal-combining stem
-output), .backends (lazily, only when backend="mlx"/"auto" is requested)
+output)
 """
 
 from pathlib import Path
@@ -493,7 +493,6 @@ def separate_file(
     device: Optional[str] = None,
     cache_dir: Optional[Union[str, Path]] = None,
     progress: bool = True,
-    backend: Optional[str] = None,
 ) -> Dict[str, Path]:
     """
     Separate an audio file into the registered model's stem files.
@@ -513,12 +512,6 @@ def separate_file(
             ``~/.cache/mdxnet-infer/`` (override via the
             ``MDXNET_INFER_CACHE_DIR`` env var).
         progress: Show progress messages and bars.
-        backend: Compute backend: ``None``/``'torch'`` (default, unchanged
-            behaviour), ``'mlx'`` (Apple Silicon, needs the ``[mlx]`` extra),
-            or ``'auto'`` (prefers ``'mlx'`` when it can actually run here).
-            ``device`` keeps its Torch meaning; the MLX backend owns its
-            own execution target and accepts only ``None``/``"auto"``/``"mps"``,
-            raising for anything else rather than ignoring it.
 
     Returns:
         Dictionary mapping stem names to output file paths.
@@ -554,26 +547,12 @@ def separate_file(
     # Load model
     if progress:
         print(f"Loading model: {model_name}")
-    from .backends import get_backend, resolve_backend_name
-
-    backend_name = resolve_backend_name(backend)
-    if backend_name == "torch":
-        engine = MDX23CInference.from_pretrained(
-            model_name=model_name,
-            cache_dir=cache_dir,
-            device=device,
-            progress=progress,
-        )
-    else:
-        from .config import MDX23CConfig
-
-        ckpt_path, yaml_path = MDX23CInference.download_model(
-            model_name, cache_dir=cache_dir, progress=progress
-        )
-        config = MDX23CConfig.from_yaml(yaml_path)
-        engine = get_backend(backend_name).from_checkpoint(
-            config=config, checkpoint_path=ckpt_path
-        )
+    engine = MDX23CInference.from_pretrained(
+        model_name=model_name,
+        cache_dir=cache_dir,
+        device=device,
+        progress=progress,
+    )
 
     # Separate
     if progress:
@@ -607,7 +586,6 @@ def separate_drums(
     device: Optional[str] = None,
     cache_dir: Optional[Union[str, Path]] = None,
     progress: bool = True,
-    backend: Optional[str] = None,
 ) -> Dict[str, Path]:
     """DrumSep-only file convenience wrapper.
 
@@ -626,6 +604,5 @@ def separate_drums(
         combine_cymbals=combine_cymbals,
         device=device,
         cache_dir=cache_dir,
-        backend=backend,
         progress=progress,
     )
