@@ -1,0 +1,73 @@
+{
+  "upstream_revision": "84b1eac0887756b4f1a9d7a1ff49105939749ed2",
+  "upstream_model_blob": "95a555b27c03e0e919ad2015d350c84b9db2f7e6",
+  "checkpoint_sha256": "d2a4aa53eb584d21eead358a4e66d1882ad182911be018f052b5da73be9096d0",
+  "config_sha256": "17d1649a227f841165bdb4c11a42082898192a1ea3ceab7e7e0b9293d6589dd6",
+  "audio_sha256": "080697cfcf78ad9811f3f454e9ddf99251b1d5ba1f4dcd0bfbdcf224852761fd",
+  "sample_rate": 44100,
+  "samples": 130560,
+  "stems": [
+    "kick",
+    "snare",
+    "toms",
+    "hh",
+    "ride",
+    "crash"
+  ],
+  "torch": "2.11.0+cu130",
+  "device": "cpu",
+  "threads": 1,
+  "cpu_model": "13th Gen Intel(R) Core(TM) i5-13600K",
+  "torch_build_sha256": "a32ba4213864dad9095f98e3497c646b32ca469dd91cc7236291bbd1cda2b3d7",
+  "original_use_amp": true,
+  "output": {
+    "kick": {
+      "shape": [
+        2,
+        130560
+      ],
+      "dtype": "float32",
+      "sha256": "67a9a1bf4d458b7299a9af1721258a4f78d7661e5fe61b59e73d64a2d90989a7"
+    },
+    "snare": {
+      "shape": [
+        2,
+        130560
+      ],
+      "dtype": "float32",
+      "sha256": "215e3c0440dbfda9c09bb9256b918c229b5a73b6e5284d37653bec5d7795842f"
+    },
+    "toms": {
+      "shape": [
+        2,
+        130560
+      ],
+      "dtype": "float32",
+      "sha256": "e78a4d818f12cb1f5868a292f035ea3e30de2e61c66b8ab1a8851e5cfb5f93b7"
+    },
+    "hh": {
+      "shape": [
+        2,
+        130560
+      ],
+      "dtype": "float32",
+      "sha256": "b4a26c07e2af4fd580bb9c0e490af90865193b100deaa7c68892b3f722c51c25"
+    },
+    "ride": {
+      "shape": [
+        2,
+        130560
+      ],
+      "dtype": "float32",
+      "sha256": "bfbda2265318980ea3e2e71f778fa294b4addbaf0f14956e32da7f5126747711"
+    },
+    "crash": {
+      "shape": [
+        2,
+        130560
+      ],
+      "dtype": "float32",
+      "sha256": "1e2f3b6b3cee21b874791e36d633fd2014a67fa725f1640095f6eb264c5a1f47"
+    }
+  }
+}
