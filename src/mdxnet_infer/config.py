@@ -21,14 +21,8 @@ import yaml
 @dataclass
 class AudioConfig:
     """Audio processing configuration."""
-    # NOTE: not authoritative -- runtime never reads this field. `inference.py`
-    # derives the actual chunk size at separation time from
-    # `hop_length * (inference.dim_t - 1)` (see `inference.py`'s
-    # `separate()`). For `drumsep_6stem` the two happen to agree
-    # (512 * 255 = 130560); for `drumsep_5stem` they do NOT
-    # (this field stores 523776, but runtime computes 512 * 511 = 261632).
-    # Retained for config-shape compatibility with the source YAML files,
-    # not deleted -- do not treat it as ground truth.
+    # Authoritative chunk length for upstream-compatible demix. This can
+    # differ from the model's STFT size derived from inference.dim_t.
     chunk_size: int = 523776
     dim_f: int = 1024
     dim_t: int = 1024
@@ -60,6 +54,7 @@ class TrainingConfig:
         'kick', 'snare', 'toms', 'hh', 'ride', 'crash'
     ])
     target_instrument: Optional[str] = None
+    use_amp: bool = True
 
 
 @dataclass
