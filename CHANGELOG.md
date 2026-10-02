@@ -5,6 +5,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### CI
+- Add the missing Python 3.11 offline CI job and verify each selected interpreter,
+  matching the existing 3.10–3.12 support classifiers.
+
 ### Added
 - Expanded the package-owned MDX23C registry from DrumSep alone to seven
   SHA-verified recipes: InstVoc HQ1/HQ2, D1581, ZFTurbo 4-stem, aufr33/jarredou
