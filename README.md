@@ -270,7 +270,7 @@ ruff check .
 python -m build
 ```
 
-CI (`.github/workflows/test.yml`) runs the same test suite on Python 3.10 and 3.12 on every push/PR; `publish.yml` gates PyPI publishing on that suite passing.
+CI (`.github/workflows/test.yml`) runs the same test suite on Python 3.10, 3.11, and 3.12 on every push/PR; `publish.yml` gates PyPI publishing on that suite passing.
 
 `pyproject.toml`'s `addopts = "-m 'not realweights'"` deselects any test
 marked `realweights` (needs a real checkpoint already on disk and specific

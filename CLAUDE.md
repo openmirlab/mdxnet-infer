@@ -62,6 +62,13 @@ pytest tests/ -v
 python -m build   # packaging check
 ```
 
+
+Push/PR CI covers all declared Python classifiers (3.10, 3.11, 3.12).
+`UV_PYTHON` selects each matrix interpreter; an assertion verifies the running
+version before `uv run --no-sync pytest tests/ -q`. This covers the existing
+offline suite, not real-weight or network validation. Workflow permissions are
+read-only. No package dependency or numerical code changes accompany this fix.
+
 ## File-top header convention
 
 Load-bearing files (roughly >150 lines) carry a file-top header: title line,

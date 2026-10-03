@@ -11,12 +11,18 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.12"]
+        python-version: ["3.10", "3.11", "3.12"]
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
 
     steps:
       - name: Checkout code
@@ -30,5 +36,8 @@ jobs:
       - name: Sync dependencies
         run: uv sync --extra dev
 
+      - name: Verify selected interpreter
+        run: uv run --no-sync python -c 'import os, sys; expected = tuple(map(int, os.environ["UV_PYTHON"].split("."))); assert sys.version_info[:2] == expected, sys.version'
+
       - name: Run unit tests
-        run: uv run pytest tests/ -q
+        run: uv run --no-sync pytest tests/ -q
