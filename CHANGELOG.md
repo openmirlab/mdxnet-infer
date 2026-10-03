@@ -5,6 +5,20 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+- `MDX23CInference.separate()` now matches upstream MDX23C `demix` for
+  complete audio output: use `audio.chunk_size`, reflect-pad eligible track
+  boundaries and trailing chunks, apply linear overlap fades with a weight
+  counter, and honor `training.use_amp` on CUDA. The previous zero-padding
+  and constant `/ overlap` scaling produced audible stem differences despite
+  an identical model forward pass. A real DrumSep checkpoint and a seeded
+  stereo input now verify all six stems against a pristine-upstream capture.
+
+### Tests
+- Capture the six-stem upstream reference before the inference fix and add
+  a SHA-verified real-checkpoint regression job to pull-request CI; the
+  checkpoint itself remains outside the repository.
+
 ### CI
 - Add the missing Python 3.11 offline CI job and verify each selected interpreter,
   matching the existing 3.10–3.12 support classifiers.
@@ -69,9 +83,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   (`.checkpoint_catalog`, `.utils.cache`, `.utils.download`) -- rewritten
   from the real import block, eager first and lazy parenthesized. `config.py`
   and `checkpoint_catalog.py` (both load-bearing) gained the header
-  convention they lacked; `config.py`'s `chunk_size` field now warns that
-  runtime never reads it and that `drumsep_5stem`'s stored value disagrees
-  with what runtime computes. The `combine_cymbals` validation lived twice
+  convention they lacked; `config.py` documents the source YAML's
+  `chunk_size` field, now honored by the upstream-compatible demix path.
+  The `combine_cymbals` validation lived twice
   with the identical message -- `clean_api.py`'s copy is deleted,
   `inference.separate_file()` is the single owner.
 

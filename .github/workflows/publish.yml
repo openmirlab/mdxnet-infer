@@ -2,10 +2,8 @@ name: Publish to PyPI
 
 # Publishes the package to PyPI when a GitHub Release is created. Uses
 # PyPI's trusted publishing (OIDC) -- no tokens -- which must be configured
-# on PyPI for the openmirlab org / mdxnet-infer repo. The `test` job (full
-# unit suite, no weights needed) gates `publish` per the org constitution's
-# release rule: publishing workflows must run tests and fail the publish
-# on any failure.
+# on PyPI for the openmirlab org / mdxnet-infer repo. Offline tests and a
+# SHA-verified real DrumSep demix comparison both gate publishing.
 
 on:
   release:
@@ -35,8 +33,40 @@ jobs:
       - name: Run unit tests
         run: uv run pytest tests/ -q
 
+  real-demix-parity:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: '3.11'
+
+      - name: Sync dependencies
+        run: uv sync --extra dev
+
+      - name: Download verified DrumSep checkpoint and YAML
+        run: |
+          mkdir -p "$RUNNER_TEMP/drumsep"
+          gh release download weights-drumsep-v1 \
+            --repo openmirlab/mdxnet-infer \
+            --pattern '*.ckpt' --pattern '*.yaml' \
+            --dir "$RUNNER_TEMP/drumsep"
+
+      - name: Compare all six stems with pristine upstream capture
+        env:
+          MDXNET_REAL_CHECKPOINT: ${{ runner.temp }}/drumsep/aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.ckpt
+          MDXNET_REAL_CONFIG: ${{ runner.temp }}/drumsep/aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.yaml
+        run: uv run --no-sync pytest tests/test_real_demix_parity.py -q -o addopts='' -m realweights
+
   publish:
-    needs: [test]
+    needs: [test, real-demix-parity]
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # Required for trusted publishing (OIDC)

@@ -144,6 +144,12 @@ stems = separate_tensor(audio, sample_rate=sr, device="cpu", progress=False)
 
 The lower-level `MDX23CInference` API remains available for custom checkpoint,
 configuration, chunking, and overlap composition.
+Its `separate()` method follows the pinned upstream MDX23C demix path:
+`audio.chunk_size` defines inference chunks, eligible track boundaries receive
+reflection padding, and overlapping predictions use a linear fade window
+with weight normalization. On CUDA, it honors the YAML's `training.use_amp`
+setting. These details affect the returned audio, especially near boundaries
+and for models whose `audio.chunk_size` differs from the derived STFT size.
 
 ### Explicit model lifecycle
 
@@ -270,11 +276,23 @@ ruff check .
 python -m build
 ```
 
-CI (`.github/workflows/test.yml`) runs the same test suite on Python 3.10, 3.11, and 3.12 on every push/PR; `publish.yml` gates PyPI publishing on that suite passing.
+CI (`.github/workflows/test.yml`) runs the offline suite on Python 3.10,
+3.11, and 3.12, plus a Python 3.11 real-checkpoint end-to-end comparison of
+all six final stems against a pristine-upstream reference. `publish.yml`
+gates PyPI publishing on its suite.
 
-`pyproject.toml`'s `addopts = "-m 'not realweights'"` deselects any test
-marked `realweights` (needs a real checkpoint already on disk and specific
-hardware) by default; there are currently none in this suite.
+`pyproject.toml`'s `addopts = "-m 'not realweights'"` deselects the
+real-checkpoint test by default. To run it locally, set
+`MDXNET_REAL_CHECKPOINT` and `MDXNET_REAL_CONFIG` to the SHA-verified DrumSep
+artifacts, then run:
+
+```bash
+pytest tests/test_real_demix_parity.py -q -o addopts='' -m realweights
+```
+
+The generated input, six upstream output arrays, capture script, and runtime
+profile are documented in `tests/fixtures/real_demix/README.md`. Checkpoint
+bytes are not committed.
 
 ## License
 

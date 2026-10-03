@@ -27,8 +27,8 @@ bundled weights. `drumsep-5stem` remains a local-weights-only architecture.
   matching the two known checkpoints' actual training configs. `drumsep_5stem`
   is kept even though its checkpoint is unavailable (see below), in case a
   user supplies their own weights or a mirror surfaces.
-- `src/mdxnet_infer/inference.py` — `MDX23CInference` (load + chunked
-  overlap-add separation), generic `separate_file()`, and DrumSep-only
+- `src/mdxnet_infer/inference.py` — `MDX23CInference` (load + upstream-compatible
+  reflect-padding and fade-weighted overlap-add separation), generic `separate_file()`, and DrumSep-only
   `separate_drums()`. `KNOWN_MODELS` is a compatibility view derived from
   the TOML; it must never become a second registry. Generic recipes must not
   acquire cymbal or other DrumSep post-processing semantics.
@@ -40,18 +40,19 @@ bundled weights. `drumsep-5stem` remains a local-weights-only architecture.
   (`load_checkpoint_state()` — the one place a `.ckpt`'s
   `state_dict`/`model_state_dict` wrapper gets unwrapped; used by
   `MDX23CInference._load_weights`).
-- `tests/` — import smoke tests + model/config/inference unit tests, all
-  offline (no network, no real checkpoint needed — instantiates
-  `TFC_TDF_net` with random weights and forward-passes synthetic tensors).
+- `tests/` — offline import/model/config/inference tests and an opt-in
+  real-checkpoint test. The latter compares all six final public-API stems
+  to a reference captured before the demix fix from pinned pristine upstream.
 
 ## Accuracy rule
 
 `model.py`'s forward pass must stay byte-for-byte identical to upstream's
 `mdx23c_tfc_tdf_v3.py` — it is a verbatim port, not a reimplementation.
 Any change to `model.py`'s math requires a before/after golden-fixture
-comparison (record fixture on current code first, then prove bit-identical
-after). No such fixture exists yet in this repo — none of the changes to
-date have touched model.py's numerics.
+comparison. `tests/fixtures/real_demix/` now contains the six final output
+arrays from pristine upstream code and the exact capture recipe; the model
+forward was separately checked to be byte-identical on the recorded CPU
+profile. No changes to `model.py` were made in the demix fix.
 
 ## Verification commands
 
@@ -65,9 +66,10 @@ python -m build   # packaging check
 
 Push/PR CI covers all declared Python classifiers (3.10, 3.11, 3.12).
 `UV_PYTHON` selects each matrix interpreter; an assertion verifies the running
-version before `uv run --no-sync pytest tests/ -q`. This covers the existing
-offline suite, not real-weight or network validation. Workflow permissions are
-read-only. No package dependency or numerical code changes accompany this fix.
+version before `uv run --no-sync pytest tests/ -q`. A separate Python 3.11
+job downloads the org-controlled DrumSep release and checks six-stem output
+against the committed pristine-upstream reference. It verifies the checkpoint
+and YAML SHA-256 before model load; workflow permissions remain read-only.
 
 ## File-top header convention
 

@@ -1,11 +1,9 @@
 """`MDX23CInference`: load a DrumSep checkpoint (from cache or by downloading
-it) and run chunked, overlap-averaged separation over arbitrary-length audio.
+it) and run chunked, fade-weighted separation over arbitrary-length audio.
 
-`separate()` does the actual work: pads the mix, slices it into overlapping
-`chunk_size`-sample windows sized from `config.inference.dim_t`, batches them
-through `TFC_TDF_net`, and accumulates overlapping predictions before
-dividing by `overlap` to average them back down — this is what lets a model
-trained on a few seconds of audio process an arbitrary-length track.
+`separate()` follows upstream MDX23C demix: reflect-pad eligible track
+boundaries, infer overlapping chunks sized by `config.audio.chunk_size`,
+and divide fade-weighted predictions by their accumulated window weights.
 `KNOWN_MODELS` is a compatibility view over the package-owned TOML catalog
 for the one currently-downloadable aufr33/jarredou DrumSep checkpoint; see
 README's Weights provenance section for provenance and for the 5-stem
@@ -23,6 +21,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 import numpy as np
 import torch
+from torch.nn import functional as F
 from tqdm import tqdm
 
 from .config import MDX23CConfig
@@ -230,7 +229,7 @@ class MDX23CInference:
                 target_sr=self.config.audio.sample_rate
             ).T
 
-        # Convert to tensor (channels, samples)
+        # Upstream demix always constructs a float32, channel-first tensor.
         mix = torch.tensor(audio.T, dtype=torch.float32)
 
         # Inference parameters
@@ -239,59 +238,84 @@ class MDX23CInference:
         if overlap is None:
             overlap = self.config.inference.num_overlap
 
-        # Chunk size calculation
-        mdx_segment_size = self.config.inference.dim_t
-        chunk_size = self.config.audio.hop_length * (mdx_segment_size - 1)
-        hop_size = chunk_size // overlap
+        chunk_size = self.config.audio.chunk_size
+        step = chunk_size // overlap
+        if chunk_size < 10 or step < 1 or batch_size < 1:
+            raise ValueError("chunk_size must be >= 10; overlap and batch_size must be positive")
+        border = chunk_size - step
+        original_length = mix.shape[-1]
+        if original_length > 2 * border and border > 0:
+            mix = F.pad(mix, (border, border), mode="reflect")
 
-        # Pad audio
-        mix_shape = mix.shape[1]
-        pad_size = hop_size - (mix_shape - chunk_size) % hop_size
-        mix = torch.cat([
-            torch.zeros(2, chunk_size - hop_size),
-            mix,
-            torch.zeros(2, pad_size + chunk_size - hop_size)
-        ], 1)
-
-        # Split into overlapping chunks
-        chunks = mix.unfold(1, chunk_size, hop_size).transpose(0, 1)
-        batches = [
-            chunks[i:i + batch_size]
-            for i in range(0, len(chunks), batch_size)
-        ]
-
-        # Initialize output accumulator
+        # Match upstream's accumulator placement without allocating an entire
+        # long track on a GPU that cannot hold the mix and all output heads.
         num_stems = self.model.num_target_instruments
-        if num_stems > 1:
-            accumulated = torch.zeros(num_stems, *mix.shape)
-        else:
-            accumulated = torch.zeros_like(mix)
+        accumulation_device = torch.device("cpu")
+        if self.device.type == "cuda":
+            required_bytes = (num_stems + 1) * mix.numel() * 4 * 1.5
+            free, _ = torch.cuda.mem_get_info(self.device)
+            available = (
+                free + torch.cuda.memory_reserved(self.device)
+                - torch.cuda.memory_allocated(self.device)
+            )
+            if required_bytes < 0.5 * available:
+                accumulation_device = self.device
+        mix = mix.to(accumulation_device)
 
-        # Process batches
-        with torch.no_grad():
-            count = 0
-            iterator = tqdm(batches, desc="Separating") if progress else batches
+        fade_size = chunk_size // 10
+        window = torch.ones(chunk_size, device=accumulation_device)
+        window[:fade_size] = torch.linspace(0, 1, fade_size, device=accumulation_device)
+        window[-fade_size:] = torch.linspace(1, 0, fade_size, device=accumulation_device)
+        accumulated = torch.zeros(
+            (num_stems,) + mix.shape, dtype=torch.float32, device=accumulation_device
+        )
+        counter = torch.zeros(mix.shape[-1], dtype=torch.float32, device=accumulation_device)
 
-            for batch in iterator:
-                batch_result = self.model(batch.to(self.device))
+        position = 0
+        batch_data: list[torch.Tensor] = []
+        batch_locations: list[tuple[int, int]] = []
+        iterator = tqdm(total=mix.shape[-1], desc="Separating", leave=False) if progress else None
+        with torch.amp.autocast(
+            device_type="cuda", enabled=self.device.type == "cuda" and self.config.training.use_amp
+        ), torch.inference_mode():
+            while position < mix.shape[-1]:
+                part = mix[:, position:position + chunk_size].to(self.device)
+                length = part.shape[-1]
+                pad_mode = "reflect" if length > chunk_size // 2 else "constant"
+                part = F.pad(part, (0, chunk_size - length), mode=pad_mode)
+                batch_data.append(part)
+                batch_locations.append((position, length))
+                position += step
 
-                for result in batch_result:
-                    result_cpu = result.cpu()
-                    accumulated[
-                        ...,
-                        count * hop_size:count * hop_size + chunk_size
-                    ] += result_cpu
-                    count += 1
+                if len(batch_data) >= batch_size or position >= mix.shape[-1]:
+                    prediction = self.model(torch.stack(batch_data)).to(
+                        accumulation_device, torch.float32
+                    )
+                    weights = window.clone()
+                    if position - step == 0:
+                        weights[:fade_size] = 1
+                    elif position >= mix.shape[-1]:
+                        weights[-fade_size:] = 1
+                    for index, (start, segment_length) in enumerate(batch_locations):
+                        accumulated[..., start:start + segment_length] += (
+                            prediction[index, ..., :segment_length] * weights[:segment_length]
+                        )
+                        counter[start:start + segment_length] += weights[:segment_length]
+                    batch_data.clear()
+                    batch_locations.clear()
+                if iterator is not None:
+                    iterator.update(step)
+        if iterator is not None:
+            iterator.close()
 
-        # Remove padding and normalize by overlap
-        output = accumulated[
-            ...,
-            chunk_size - hop_size:-(pad_size + chunk_size - hop_size)
-        ] / overlap
+        output = accumulated.div_(counter)
+        if original_length > 2 * border and border > 0:
+            output = output[..., border:-border]
+        output = torch.nan_to_num(output, nan=0.0)
 
         # Build stem dict
         stems: Dict[str, np.ndarray] = {}
-        output_np = output.cpu().detach().numpy()
+        output_np = output.cpu().numpy()
 
         stem_names = self.stem_names
         if len(stem_names) != num_stems:
@@ -300,10 +324,7 @@ class MDX23CInference:
                 "provide an explicit target-instrument output contract"
             )
         for i, stem_name in enumerate(stem_names):
-            if num_stems > 1:
-                stem_audio = output_np[i]  # (channels, samples)
-            else:
-                stem_audio = output_np
+            stem_audio = output_np[i]  # (channels, samples)
 
             stems[stem_name] = stem_audio.T  # (samples, channels)
 
