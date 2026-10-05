@@ -1,5 +1,8 @@
 # mdxnet-infer
 
+> **Current installation:** `pip install "mdxnet-infer @ git+https://github.com/openmirlab/mdxnet-infer.git"`
+> OpenMIRLab no longer publishes new versions to PyPI. Any existing PyPI releases are historical snapshots.
+
 **Inference-only MDX23C TFC-TDF source separation.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -73,7 +76,7 @@ uv add mdxnet-infer
 ### With pip
 
 ```bash
-pip install mdxnet-infer
+pip install "mdxnet-infer @ git+https://github.com/openmirlab/mdxnet-infer.git"
 ```
 
 ## Quick Start

@@ -1,19 +1,12 @@
-name: Publish to PyPI
-
-# Publishes the package to PyPI when a GitHub Release is created. Uses
-# PyPI's trusted publishing (OIDC) -- no tokens -- which must be configured
-# on PyPI for the openmirlab org / mdxnet-infer repo. Offline tests and a
-# SHA-verified real DrumSep demix comparison both gate publishing.
+name: Release verification
 
 on:
   release:
     types: [published]
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to publish (e.g., 0.1.0)'
-        required: false
-        type: string
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -35,8 +28,6 @@ jobs:
 
   real-demix-parity:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -65,13 +56,9 @@ jobs:
           MDXNET_REAL_CONFIG: ${{ runner.temp }}/drumsep/aufr33-jarredou_DrumSep_model_mdx23c_ep_141_sdr_10.8059.yaml
         run: uv run --no-sync pytest tests/test_real_demix_parity.py -q -o addopts='' -m realweights
 
-  publish:
+  build:
     needs: [test, real-demix-parity]
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write  # Required for trusted publishing (OIDC)
-      contents: read    # Required to checkout code
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -93,8 +80,3 @@ jobs:
         run: |
           pip install twine
           twine check dist/*
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist/
