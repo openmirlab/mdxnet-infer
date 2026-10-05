@@ -111,3 +111,7 @@ docstring (see `model.py`).
   citation (Solovyev, Stempkovskiy, Habruseva) as used by upstream MSST.
   Flagging here so a future contributor doesn't wonder why the citation
   changed without a corresponding code change.
+
+## Distribution policy (2026-10-05)
+
+Install the current source from `https://github.com/openmirlab/mdxnet-infer`. GitHub release workflows verify and build distributions but do not upload to PyPI. Existing PyPI versions, where any exist, are historical snapshots. Update installation examples to use Git when changing this package.
