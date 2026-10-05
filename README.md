@@ -70,7 +70,7 @@ mdxnet-infer is built on the MDX23C TFC-TDF architecture and the DrumSep model w
 ### With UV (Recommended)
 
 ```bash
-uv add mdxnet-infer
+uv add "mdxnet-infer @ git+https://github.com/openmirlab/mdxnet-infer.git"
 ```
 
 ### With pip
@@ -282,7 +282,7 @@ python -m build
 CI (`.github/workflows/test.yml`) runs the offline suite on Python 3.10,
 3.11, and 3.12, plus a Python 3.11 real-checkpoint end-to-end comparison of
 all six final stems against a pristine-upstream reference. `publish.yml`
-gates PyPI publishing on its suite.
+gates GitHub release verification on its suite.
 
 `pyproject.toml`'s `addopts = "-m 'not realweights'"` deselects the
 real-checkpoint test by default. To run it locally, set
